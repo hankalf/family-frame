@@ -80,7 +80,7 @@ Run the server in a small LXC container; the frame then just opens a URL.
 2. Inside the container:
 
    ```bash
-   FRAME_REPO_URL=https://github.com/<you>/<repo>.git bash <(curl -fsSL https://raw.githubusercontent.com/<you>/<repo>/main/deploy/proxmox-lxc-setup.sh)
+   FRAME_REPO_URL=https://github.com/hankalf/family-frame.git bash <(curl -fsSL https://raw.githubusercontent.com/hankalf/family-frame/main/deploy/proxmox-lxc-setup.sh)
    ```
 
    The script installs Node 22 + avahi, clones, builds, creates a systemd service on

@@ -8,7 +8,7 @@
 #   pct start 210 && pct enter 210
 #
 # Then inside the container:
-#   bash <(curl -fsSL https://raw.githubusercontent.com/<you>/<repo>/main/deploy/proxmox-lxc-setup.sh)
+#   bash <(curl -fsSL https://raw.githubusercontent.com/hankalf/family-frame/main/deploy/proxmox-lxc-setup.sh)
 # or copy this repo to /opt/frame yourself and run: bash /opt/frame/deploy/proxmox-lxc-setup.sh
 set -euo pipefail
 
@@ -32,7 +32,7 @@ elif [ -n "$REPO_URL" ]; then
   git clone --depth 1 "$REPO_URL" "$APP_DIR"
 else
   echo "!! No app found at ${APP_DIR} and FRAME_REPO_URL not set."
-  echo "   Either: FRAME_REPO_URL=https://github.com/<you>/<repo>.git bash $0"
+  echo "   Either: FRAME_REPO_URL=https://github.com/hankalf/family-frame.git bash $0"
   echo "   Or copy the project to ${APP_DIR} first (from Proxmox host: pct push, or scp)."
   exit 1
 fi
