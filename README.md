@@ -28,9 +28,20 @@ photos and events — each with their own permissions.
 - **Display niceties** — night dimming on a schedule, screen wake-lock, offline-tolerant
   (keeps showing cached data and says so), photos-only / calendar-only / combined layouts.
 - **Touchscreen support** — a minimal menu at the bottom-center of the display switches
-  between Calendar / Both / Photos with a tap. It idles semi-transparent, wakes on touch,
-  and the frame remembers the chosen view. The admin's layout setting is the default;
+  between Calendar / Both / Photos / Weather with a tap. It idles semi-transparent, wakes on
+  touch, and the frame remembers the chosen view. The admin's layout setting is the default;
   changing it remotely takes back over until the screen is next touched.
+- **Month calendar on the frame** — the Calendar tab is a full month grid with each day's
+  events, month back/forward and a "Today" jump. Tap any day to see what's on and add an
+  event right there — including a built-in on-screen keyboard, since a wall frame has no
+  physical one. Turn it off with **Adding events from the frame** in Admin → Display.
+- **Weather** — a compact current-conditions widget in the sidebar plus a full Weather tab:
+  now, next 12 hours, 7-day forecast, and an animated rain radar. Uses
+  [Open-Meteo](https://open-meteo.com) (free, no API key, no account) with server-side caching,
+  so the frame keeps showing the last good reading when the network drops. Radar tiles come
+  from RainViewer over a CARTO/OpenStreetMap base map and are the only part that needs the
+  *display itself* to reach the internet — it degrades to "Radar unavailable" and leaves the
+  forecast intact.
 - **Photo folder import** — optionally point it at a folder (USB stick, Syncthing,
   network share) and it imports new images automatically.
 - **Family feed** — an Instagram-style feed in the app: everyone's photos in one

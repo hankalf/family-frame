@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../api.js';
+import CityPicker from './CityPicker.jsx';
 
 export default function DisplaySection() {
   const [data, setData] = useState(null);
@@ -189,6 +190,94 @@ export default function DisplaySection() {
       </section>
 
       <section className="card space-y-4">
+        <h2 className="font-medium">Weather</h2>
+        <p className="-mt-2 text-sm text-slate-400">
+          Powered by Open-Meteo — free, no account needed. Pick the town the frame should show.
+        </p>
+
+        <CityPicker
+          place={draft.weather_label}
+          lat={draft.weather_latitude}
+          lon={draft.weather_longitude}
+          onPick={({ label, latitude, longitude }) =>
+            setDraft((d) => ({
+              ...d,
+              weather_label: label,
+              weather_latitude: latitude.toFixed(4),
+              weather_longitude: longitude.toFixed(4),
+            }))
+          }
+          onClear={() =>
+            setDraft((d) => ({
+              ...d,
+              weather_label: '',
+              weather_latitude: '',
+              weather_longitude: '',
+            }))
+          }
+        />
+
+        <Row label="Show weather on the frame">
+          <Segmented
+            value={draft.weather_enabled}
+            onChange={set('weather_enabled')}
+            options={[
+              { value: 'true', label: 'On' },
+              { value: 'false', label: 'Off' },
+            ]}
+          />
+        </Row>
+        <Row label="Units">
+          <Segmented
+            value={draft.weather_units}
+            onChange={set('weather_units')}
+            options={[
+              { value: 'imperial', label: '°F · mph' },
+              { value: 'metric', label: '°C · km/h' },
+            ]}
+          />
+        </Row>
+        <Row label="Radar map">
+          <Segmented
+            value={draft.weather_radar_enabled}
+            onChange={set('weather_radar_enabled')}
+            options={[
+              { value: 'true', label: 'On' },
+              { value: 'false', label: 'Off' },
+            ]}
+          />
+        </Row>
+        <Row label="Refresh every">
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min="5"
+              max="180"
+              className="field w-24"
+              value={draft.weather_poll_minutes}
+              onChange={(e) => set('weather_poll_minutes')(e.target.value)}
+            />
+            <span className="text-sm text-slate-400">minutes</span>
+          </div>
+        </Row>
+        <Row label="Leave the Weather tab after">
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min="0"
+              max="120"
+              className="field w-24"
+              value={draft.weather_return_minutes}
+              onChange={(e) => set('weather_return_minutes')(e.target.value)}
+            />
+            <span className="text-sm text-slate-400">minutes (0 = stay)</span>
+          </div>
+        </Row>
+
+        <WeatherStatus />
+      </section>
+
+      <section className="card space-y-4">
         <h2 className="font-medium">Night mode</h2>
         <p className="-mt-2 text-sm text-slate-400">
           The frame dims between these times so it doesn't light up the room.
@@ -267,6 +356,7 @@ const LAYOUT_LABELS = {
   sidebar: 'Photos + agenda',
   'photo-only': 'Photos only',
   'calendar-only': 'Calendar only',
+  weather: 'Weather',
 };
 
 function timeAgo(iso) {
@@ -385,6 +475,65 @@ function DisplaysPanel() {
         </ul>
       )}
     </section>
+  );
+}
+
+/** Live status line: when weather last updated, or why it didn't. */
+function WeatherStatus() {
+  const [status, setStatus] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      setStatus(await api.get('/weather'));
+    } catch {
+      /* keep the last status */
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+    const id = setInterval(load, 30_000);
+    return () => clearInterval(id);
+  }, [load]);
+
+  if (!status) return null;
+
+  const temp = status.weather?.current?.temp;
+  return (
+    <div className="flex flex-wrap items-center gap-3 border-t border-slate-800 pt-3">
+      <div className="min-w-0 flex-1 text-sm">
+        {status.error ? (
+          <p className="text-rose-400">Last fetch failed: {status.error}</p>
+        ) : status.fetchedAt ? (
+          <p className={status.stale ? 'text-amber-300' : 'text-slate-400'}>
+            {Number.isFinite(temp) ? `${Math.round(temp)}° · ` : ''}
+            updated {timeAgo(status.fetchedAt)}
+            {status.stale ? ' (stale)' : ''}
+          </p>
+        ) : (
+          <p className="text-slate-500">No reading yet.</p>
+        )}
+      </div>
+      <button
+        className="btn-ghost text-sm"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            const result = await api.post('/weather/refresh');
+            setStatus(result);
+            if (result.skipped) alert(result.reason);
+          } catch (err) {
+            alert(err.message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {busy ? 'Checking…' : 'Refresh now'}
+      </button>
+    </div>
   );
 }
 

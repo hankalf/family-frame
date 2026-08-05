@@ -1,5 +1,5 @@
 import express from 'express';
-import { db, newId, nowIso } from '../db.js';
+import { db, getSetting, newId, nowIso } from '../db.js';
 import { requireAuth, requirePermission, requireViewer } from '../auth.js';
 
 export const router = express.Router();
@@ -164,6 +164,54 @@ router.post('/', requirePermission('can_add_events'), (req, res) => {
   ).run(event);
 
   res.status(201).json({ event: { ...shapeLocal(event), canEdit: true } });
+});
+
+/**
+ * Quick-add from the kiosk itself. The frame has no signed-in user — it's
+ * authenticated by the display token — so this is a deliberately narrow door:
+ * an admin must enable it, and it only creates simple events.
+ */
+router.post('/from-display', requireViewer, (req, res) => {
+  if (!req.isDisplay && !req.user) return res.status(401).json({ error: 'Not signed in' });
+  if (getSetting('frame_add_events') !== 'true') {
+    return res.status(403).json({ error: 'Adding events from the frame is turned off' });
+  }
+
+  const { title, date, time, allDay } = req.body || {};
+  if (!title?.trim()) return res.status(400).json({ error: 'A title is required' });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) {
+    return res.status(400).json({ error: 'A valid date is required' });
+  }
+
+  const isAllDay = !!allDay || !/^\d{2}:\d{2}$/.test(time || '');
+  const start = isAllDay ? `${date}T00:00:00.000Z` : new Date(`${date}T${time}:00`).toISOString();
+  if (Number.isNaN(new Date(start).getTime())) {
+    return res.status(400).json({ error: 'A valid date is required' });
+  }
+  const end = new Date(
+    new Date(start).getTime() + (isAllDay ? DAY_MS : 60 * 60 * 1000)
+  ).toISOString();
+
+  const event = {
+    id: newId(),
+    title: title.trim().slice(0, 120),
+    description: null,
+    location: null,
+    starts_at: start,
+    ends_at: end,
+    all_day: isAllDay ? 1 : 0,
+    color: '#34d399',
+    created_by: req.user?.id ?? null, // null = added on the frame
+    created_at: nowIso(),
+    updated_at: nowIso(),
+  };
+
+  db.prepare(
+    `INSERT INTO events (id, title, description, location, starts_at, ends_at, all_day, color, created_by, created_at, updated_at)
+     VALUES (@id, @title, @description, @location, @starts_at, @ends_at, @all_day, @color, @created_by, @created_at, @updated_at)`
+  ).run(event);
+
+  res.status(201).json({ event: shapeLocal(event) });
 });
 
 function loadEditable(req, res) {

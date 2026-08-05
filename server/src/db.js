@@ -131,6 +131,15 @@ CREATE TABLE IF NOT EXISTS displays (
   last_seen   TEXT NOT NULL
 );
 
+-- Single row ('current'). Cached so the frame keeps showing the last good
+-- reading across restarts and network outages.
+CREATE TABLE IF NOT EXISTS weather_cache (
+  id         TEXT PRIMARY KEY,
+  payload    TEXT,
+  fetched_at TEXT,
+  last_error TEXT
+);
+
 CREATE TABLE IF NOT EXISTS photo_likes (
   photo_id   TEXT NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
   user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -168,6 +177,18 @@ export const DEFAULT_SETTINGS = {
   gmail_address: '',
   gmail_app_password: '',
   gmail_poll_minutes: '5',
+  // Weather (Open-Meteo — no API key needed)
+  weather_enabled: 'true',
+  weather_latitude: '',
+  weather_longitude: '',
+  weather_label: '',
+  weather_units: 'imperial', // 'imperial' | 'metric'
+  weather_poll_minutes: '15',
+  weather_radar_enabled: 'true',
+  weather_return_minutes: '5', // auto-return from the Weather tab; 0 = stay
+  // Let people add events by tapping a day on the frame itself. The frame is
+  // authenticated by the display token, so this is off-limits unless enabled.
+  frame_add_events: 'true',
 };
 
 export function getSetting(key) {

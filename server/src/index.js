@@ -12,9 +12,11 @@ import { router as photoRoutes } from './routes/photos.js';
 import { router as settingRoutes, feedRouter } from './routes/settings.js';
 import { router as ingestRoutes } from './routes/ingest.js';
 import { router as displayRoutes } from './routes/displays.js';
+import { router as weatherRoutes } from './routes/weather.js';
 import { startFeedPolling } from './services/ics.js';
 import { startFolderScanning } from './services/photoSources.js';
 import { startImapPolling } from './services/inbox.js';
+import { startWeatherPolling } from './services/weather.js';
 
 ensureDirs();
 
@@ -38,6 +40,7 @@ app.use('/api/settings', settingRoutes);
 app.use('/api/feeds', feedRouter);
 app.use('/api/ingest', ingestRoutes);
 app.use('/api/displays', displayRoutes);
+app.use('/api/weather', weatherRoutes);
 
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Unknown endpoint' }));
 
@@ -68,4 +71,5 @@ app.listen(PORT, '0.0.0.0', () => {
   startFeedPolling();
   startFolderScanning();
   startImapPolling();
+  startWeatherPolling();
 });

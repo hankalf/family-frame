@@ -5,6 +5,10 @@ import { isNightTime } from '../lib/dates.js';
 import PhotoFrame from './PhotoFrame.jsx';
 import Agenda from './Agenda.jsx';
 import Clock from './Clock.jsx';
+import Weather from './Weather.jsx';
+import WeatherScreen from './WeatherScreen.jsx';
+import MonthCalendar from './MonthCalendar.jsx';
+import QuickAddEvent from './QuickAddEvent.jsx';
 
 // Data refresh, not page reload — the slideshow keeps its place. Cheap against
 // the LAN server; note that external .ics feeds still only change as often as
@@ -13,6 +17,7 @@ const PLAYLIST_REFRESH_MS = 15 * 1000;
 const AGENDA_REFRESH_MS = 15 * 1000;
 const SETTINGS_REFRESH_MS = 60 * 1000;
 const HEARTBEAT_MS = 60 * 1000;
+const WEATHER_REFRESH_MS = 5 * 60 * 1000; // the server caches; this just reads it
 
 /** Stable per-screen id so the admin page can tell frames apart. */
 function getDeviceId() {
@@ -86,11 +91,34 @@ export default function Display() {
     [token, agendaDays]
   );
 
+  // The month grid needs a wider window than the sidebar agenda: back to the
+  // start of last month, forward far enough to page ahead a few months.
+  const monthQuery = usePolled(
+    async () => {
+      const from = new Date();
+      from.setMonth(from.getMonth() - 1, 1);
+      return (
+        await api.get(`/events/agenda?days=200&from=${from.toISOString().slice(0, 10)}`)
+      ).events;
+    },
+    AGENDA_REFRESH_MS,
+    [token]
+  );
+
   const playlistQuery = usePolled(
     async () => (await api.get('/photos/playlist')).photos,
     PLAYLIST_REFRESH_MS,
     [token]
   );
+
+  // Re-fetch when the admin moves the location so it lands within one settings
+  // poll rather than up to five minutes later.
+  const weatherQuery = usePolled(async () => api.get('/weather'), WEATHER_REFRESH_MS, [
+    token,
+    settings?.weather_latitude,
+    settings?.weather_longitude,
+    settings?.weather_units,
+  ]);
 
   const [isNight, setIsNight] = useState(false);
   useEffect(() => {
@@ -153,7 +181,28 @@ export default function Display() {
     }
   }, [serverLayout]);
 
+  /**
+   * Weather is a transient "look something up" view, not a persisted layout —
+   * writing it to localStorage would land the frame on a forecast after a
+   * reboot, and the admin can never set it as a default anyway.
+   */
+  const [weatherView, setWeatherView] = useState(false);
+  const [quickAddDate, setQuickAddDate] = useState(null);
+  const returnTimerRef = useRef(null);
+
   const pickLayout = (value) => {
+    clearTimeout(returnTimerRef.current);
+
+    if (value === 'weather') {
+      setWeatherView(true);
+      const minutes = Number(settings?.weather_return_minutes);
+      if (Number.isFinite(minutes) && minutes > 0) {
+        returnTimerRef.current = setTimeout(() => setWeatherView(false), minutes * 60 * 1000);
+      }
+      return;
+    }
+
+    setWeatherView(false);
     setLocalLayout(value);
     try {
       localStorage.setItem('frame.layout', value);
@@ -162,8 +211,10 @@ export default function Display() {
     }
   };
 
+  useEffect(() => () => clearTimeout(returnTimerRef.current), []);
+
   // Report in every minute so the admin page can show this frame as online.
-  const layoutForHeartbeat = localLayout || serverLayout;
+  const layoutForHeartbeat = weatherView ? 'weather' : localLayout || serverLayout;
   useEffect(() => {
     if (!token) return undefined;
     const deviceId = getDeviceId();
@@ -192,9 +243,15 @@ export default function Display() {
   if (!token || unauthorized) return <TokenPrompt hasToken={!!token} />;
   if (!settings) return <Splash message="Waking up…" />;
 
-  const layout = localLayout || serverLayout;
-  const showPhotos = layout !== 'calendar-only';
-  const showCalendar = layout !== 'photo-only';
+  // Weather is a full-screen view, so it wins over the photo/calendar split.
+  const baseLayout = localLayout || serverLayout;
+  const layout = weatherView ? 'weather' : baseLayout;
+  const showPhotos = !weatherView && baseLayout !== 'calendar-only';
+  const showCalendar = !weatherView && baseLayout !== 'photo-only';
+
+  const weatherReady =
+    settings.weather_enabled === 'true' && !!settings.weather_latitude;
+  const menuItems = LAYOUTS.filter((item) => item.id !== 'weather' || weatherReady);
 
   return (
     <div className="kiosk relative h-screen w-screen overflow-hidden bg-slate-950">
@@ -209,31 +266,62 @@ export default function Display() {
         />
       )}
 
-      {showCalendar && (
+      {/* Calendar-only becomes a full month grid; alongside photos it stays an
+          agenda list, which reads better in a narrow column. */}
+      {showCalendar && !showPhotos && (
+        <div className="absolute inset-0 z-20 bg-slate-950 p-9 pb-24">
+          <MonthCalendar
+            events={monthQuery.data || []}
+            timezone={settings.timezone}
+            clock24={settings.clock_24h === 'true'}
+            weekStartsOn={Number(settings.week_starts_on) === 0 ? 0 : 1}
+            canAddEvents={settings.frame_add_events === 'true'}
+            onAddEvent={setQuickAddDate}
+          />
+        </div>
+      )}
+
+      {showCalendar && showPhotos && (
         <aside
           className={[
             'absolute inset-y-0 left-0 z-20 flex w-[30rem] max-w-[38vw] flex-col gap-6 p-9',
-            showPhotos
-              ? 'bg-gradient-to-r from-slate-950 via-slate-950/95 to-transparent'
-              : 'w-full max-w-none bg-slate-950',
+            'bg-gradient-to-r from-slate-950 via-slate-950/95 to-transparent',
           ].join(' ')}
         >
-          <Clock
-            clock24={settings.clock_24h === 'true'}
-            timezone={settings.timezone}
-            wide={!showPhotos}
-          />
+          <Clock clock24={settings.clock_24h === 'true'} timezone={settings.timezone} />
+          {weatherReady && (
+            <Weather
+              payload={weatherQuery.data}
+              loading={!weatherQuery.data}
+              onOpen={() => pickLayout('weather')}
+            />
+          )}
           <Agenda
             events={agendaQuery.data || []}
             timezone={settings.timezone}
             clock24={settings.clock_24h === 'true'}
             loading={!agendaQuery.data}
-            columns={showPhotos ? 1 : 3}
+            columns={1}
           />
         </aside>
       )}
 
-      <LayoutMenu layout={layout} onPick={pickLayout} />
+      {quickAddDate && (
+        <QuickAddEvent
+          dateKey={quickAddDate}
+          clock24={settings.clock_24h === 'true'}
+          onSaved={() => {
+            setQuickAddDate(null);
+            monthQuery.reload();
+            agendaQuery.reload();
+          }}
+          onClose={() => setQuickAddDate(null)}
+        />
+      )}
+
+      {weatherView && <WeatherScreen payload={weatherQuery.data} settings={settings} />}
+
+      <LayoutMenu layout={layout} items={menuItems} onPick={pickLayout} />
 
       {/* Night dimming — a pure overlay so nothing has to re-render. */}
       <div
@@ -254,13 +342,14 @@ const LAYOUTS = [
   { id: 'calendar-only', label: 'Calendar', icon: CalendarIcon },
   { id: 'sidebar', label: 'Both', icon: SplitIcon },
   { id: 'photo-only', label: 'Photos', icon: PhotoIcon },
+  { id: 'weather', label: 'Weather', icon: WeatherMenuIcon },
 ];
 
 /**
  * Minimal touch menu, bottom-center. Sits dim so it doesn't draw the eye;
  * any touch/click on the screen wakes it to full opacity for a few seconds.
  */
-function LayoutMenu({ layout, onPick }) {
+function LayoutMenu({ layout, items = LAYOUTS, onPick }) {
   const [awake, setAwake] = useState(false);
   const timerRef = useRef(null);
 
@@ -288,7 +377,7 @@ function LayoutMenu({ layout, onPick }) {
       ].join(' ')}
       style={{ touchAction: 'manipulation' }}
     >
-      {LAYOUTS.map(({ id, label, icon: Icon }) => {
+      {items.map(({ id, label, icon: Icon }) => {
         const active = layout === id;
         return (
           <button
@@ -335,6 +424,16 @@ function PhotoIcon() {
       <rect x="3" y="4" width="18" height="16" rx="2" />
       <circle cx="8.5" cy="9.5" r="1.5" />
       <path d="M4 17l5-5 3.5 3.5L15 13l5 4.5" />
+    </svg>
+  );
+}
+
+function WeatherMenuIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <circle cx="8.5" cy="8" r="3" />
+      <path d="M8.5 2.8v1.2M3.3 8h1.2M4.9 4.4l.9.9M12.1 4.4l-.9.9" />
+      <path d="M7 18.5a3.5 3.5 0 0 1 .3-7 5 5 0 0 1 9.4 1.2 3 3 0 0 1-.2 5.8z" />
     </svg>
   );
 }
