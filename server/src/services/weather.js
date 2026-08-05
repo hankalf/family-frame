@@ -96,6 +96,9 @@ function shapeForecast(raw, unitKey) {
   };
 }
 
+/** Exposed for tests — the shaping is where the timestamp contract lives. */
+export const shapeForecastForTest = shapeForecast;
+
 /** Fetches and caches once. Returns {ok, error?, skipped?}. */
 export async function fetchWeatherNow() {
   if (getSetting('weather_enabled') !== 'true') return { skipped: true, reason: 'Weather is off' };

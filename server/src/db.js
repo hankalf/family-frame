@@ -193,6 +193,18 @@ export const DEFAULT_SETTINGS = {
   frame_border_width: '0',
   frame_border_color: '#1e293b',
   frame_border_radius: '0',
+  // Backups — photos are the one thing here that can't be recreated
+  backup_enabled: 'true',
+  backup_path: '', // '' = <data>/backups; point at a NAS mount for off-box copies
+  backup_every_hours: '24',
+  backup_keep: '7',
+  // Alerting (sent through the configured Gmail account)
+  alerts_enabled: 'false',
+  alert_email: '', // '' = send to the Gmail address itself
+  // Written by services, not the admin form
+  gmail_last_error: '',
+  alert_last_sent: '',
+  alerted_displays: '',
 };
 
 export function getSetting(key) {

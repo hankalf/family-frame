@@ -192,6 +192,81 @@ Disable screen blanking: `sudo raspi-config` → Display Options → Screen Blan
 
 Paste into **Admin → Calendar feeds**. Feeds refresh every 15 minutes (configurable).
 
+## Backups
+
+Family photos are the only thing here you can't recreate. **Admin → System** runs a backup
+every 24 hours by default, keeping 7 generations in `<data>/backups`.
+
+Each generation takes a consistent database snapshot (via SQLite's own backup API — copying a
+live WAL database by hand can capture a state that won't reopen) and **hardlinks** the photo
+originals, so ten generations of a 20 GB library cost ~20 GB, not 200 GB.
+
+> ⚠️ **A backup on the same disk does not survive that disk failing.** Set **Where to store
+> them** to a mounted NAS share, or copy the folder off the box on a schedule:
+>
+> ```bash
+> rsync -a --delete /var/lib/frame/backups/ user@nas:/volume1/backups/frame/
+> ```
+>
+> Proxmox snapshots of the container cover this too — but only if you actually take them.
+
+## Remote access and HTTPS
+
+Out of the box the frame is LAN-only over plain HTTP, which means family members can only add
+photos while they're on your Wi-Fi. **[Tailscale](https://tailscale.com)** is the least painful
+fix — no port forwarding, no certificate wrangling, no exposing anything to the open internet:
+
+```bash
+curl -fsSL https://tailscale.com/install.sh | sh
+tailscale up
+tailscale cert "$(tailscale status --json | grep -o '"DNSName":"[^"]*' | head -1 | cut -d'"' -f4)"
+```
+
+Then serve the app behind that certificate (Caddy is two lines) and set `COOKIE_SECURE=true` in
+the systemd unit so session cookies are marked secure. Add each family member's phone to your
+tailnet and `https://frame.your-tailnet.ts.net/app` works from anywhere.
+
+This also unlocks **offline photo caching** on the frame: service workers require a secure
+context, so on plain HTTP the browser refuses to register one. Over HTTPS the display can cache
+its whole playlist and ride out a network outage completely.
+
+## Better appointment extraction
+
+Appointment parsing falls back to a plain date parser unless the server has an Anthropic API
+key. The fallback finds dates but writes generic titles; with a key you get proper titles,
+locations and reschedule handling. Get a key from
+[console.anthropic.com](https://console.anthropic.com), then:
+
+```bash
+sudo systemctl edit frame
+```
+
+Add:
+
+```ini
+[Service]
+Environment=ANTHROPIC_API_KEY=sk-ant-...
+```
+
+Then `sudo systemctl restart frame`. Admin → Appointments stops showing the "basic date parser"
+warning once it's picked up. (For Docker, add it under `environment:` in `docker-compose.yml`.)
+
+## Alerts
+
+**Admin → System → Alerts** emails you a weekly health summary and tells you when a display
+goes dark for an hour. It sends through the Gmail account already configured for appointment
+intake, so there's no second credential to set up.
+
+## Tests
+
+```bash
+npm -w server test
+```
+
+56 tests covering the permission matrix (who can edit whose events, what a display token can
+and can't reach), the settings write allowlist, backup integrity and rotation, and the
+weather timestamp contract.
+
 ## Security notes
 
 - Designed for a home LAN. If you expose it to the internet, put it behind HTTPS

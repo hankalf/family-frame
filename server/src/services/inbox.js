@@ -4,7 +4,7 @@
  */
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
-import { db, getSetting, newId, nowIso } from '../db.js';
+import { db, getSetting, newId, nowIso, setSetting } from '../db.js';
 import { extractAppointment, extractionToEvent } from './extract.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -160,9 +160,11 @@ export async function pollImapOnce() {
       lock.release();
     }
     await clientImap.logout();
+    setSetting('gmail_last_error', '');
     return { skipped: false, processed };
   } catch (err) {
     console.error('[imap] poll failed:', err.message);
+    setSetting('gmail_last_error', err.message);
     try {
       await clientImap.logout();
     } catch {

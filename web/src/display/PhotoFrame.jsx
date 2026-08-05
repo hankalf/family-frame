@@ -3,13 +3,20 @@ import { photoUrl } from '../api.js';
 
 const CROSSFADE_MS = 1400;
 
+const PREFETCH_AHEAD = 4;
+
+/**
+ * Weighted shuffle: a photo the family has liked shows up more often, but every
+ * photo still appears — this biases the order, it doesn't filter.
+ */
 function shuffled(list) {
-  const out = [...list];
-  for (let i = out.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
+  const pool = list.map((photo) => ({
+    photo,
+    // Random key raised to 1/weight — the standard trick for weighted sampling
+    // without replacement. More likes → key closer to 1 → sorts earlier.
+    key: Math.random() ** (1 / (1 + Math.min(5, photo.likes || 0))),
+  }));
+  return pool.sort((a, b) => b.key - a.key).map((entry) => entry.photo);
 }
 
 /**
@@ -56,13 +63,23 @@ export default function PhotoFrame({
     return () => clearTimeout(id);
   }, [index, order.length, slideSeconds]);
 
-  // Fetch the next image while the current one is still on screen, so the
-  // crossfade never lands on a half-decoded frame.
+  /**
+   * Fetch several slides ahead, not just one. The images are served with a
+   * long immutable cache header, so once fetched they survive a network blip —
+   * which is what used to leave a blank slide mid-rotation. Keeping the Image
+   * objects in a ref stops them being collected before the browser caches them.
+   */
+  const prefetchRef = useRef([]);
   useEffect(() => {
-    if (!nextPhoto) return;
-    const img = new Image();
-    img.src = photoUrl(nextPhoto.id, 'display');
-  }, [nextPhoto]);
+    if (order.length < 2) return;
+    prefetchRef.current = [];
+    for (let i = 1; i <= Math.min(PREFETCH_AHEAD, order.length - 1); i += 1) {
+      const photo = order[(index + i) % order.length];
+      const img = new Image();
+      img.src = photoUrl(photo.id, 'display');
+      prefetchRef.current.push(img);
+    }
+  }, [index, order]);
 
   // Keep the outgoing slide mounted underneath until the fade completes.
   const [previousPhoto, setPreviousPhoto] = useState(null);
@@ -127,6 +144,9 @@ export default function PhotoFrame({
 
 function Slide({ photo, visible, kenburns, slideSeconds, paddingLeft, zIndex }) {
   const [shown, setShown] = useState(!!visible);
+  // A slide that fails to load (blip mid-fetch) retries once rather than
+  // leaving a hole in the rotation.
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (visible) return undefined;
@@ -135,7 +155,10 @@ function Slide({ photo, visible, kenburns, slideSeconds, paddingLeft, zIndex }) 
     return () => cancelAnimationFrame(id);
   }, [visible]);
 
-  const src = photoUrl(photo.id, 'display');
+  const src = `${photoUrl(photo.id, 'display')}${attempt ? `&retry=${attempt}` : ''}`;
+  const retry = () => {
+    if (attempt < 2) setTimeout(() => setAttempt((a) => a + 1), 2000);
+  };
 
   return (
     <div
@@ -157,6 +180,7 @@ function Slide({ photo, visible, kenburns, slideSeconds, paddingLeft, zIndex }) 
         <img
           src={src}
           alt={photo.caption || ''}
+          onError={retry}
           className="max-h-full max-w-full object-contain drop-shadow-2xl"
           style={
             kenburns

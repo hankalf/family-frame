@@ -60,7 +60,8 @@ function shape(row) {
 router.get('/playlist', requireViewer, (_req, res) => {
   const rows = db
     .prepare(
-      `SELECT p.id, p.caption, p.width, p.height, p.taken_at, p.created_at, u.name AS uploaded_by_name
+      `SELECT p.id, p.caption, p.width, p.height, p.taken_at, p.created_at, u.name AS uploaded_by_name,
+              (SELECT COUNT(*) FROM photo_likes pl WHERE pl.photo_id = p.id) AS like_count
        FROM photos p LEFT JOIN users u ON u.id = p.uploaded_by
        WHERE p.status = 'approved'
        ORDER BY p.created_at DESC`
@@ -76,6 +77,8 @@ router.get('/playlist', requireViewer, (_req, res) => {
       takenAt: row.taken_at,
       addedAt: row.created_at,
       addedBy: row.uploaded_by_name,
+      // Drives how often the frame picks this one — see the kiosk's weighting.
+      likes: row.like_count,
     })),
   });
 });
@@ -269,9 +272,13 @@ router.patch('/:id', requireAuth, (req, res) => {
   if (!req.user.is_admin && !isOwner) {
     return res.status(403).json({ error: 'You can only change photos you added' });
   }
-  // Moderation is an admin decision, even on your own upload.
+  // Approving is an admin decision, but you can always pull your own photo off
+  // the frame — that shouldn't need someone else's say-so.
   if (status !== undefined && !req.user.is_admin) {
-    return res.status(403).json({ error: 'Only admins can approve or reject photos' });
+    const ownerMayHide = isOwner && status === 'rejected';
+    if (!ownerMayHide) {
+      return res.status(403).json({ error: 'Only admins can approve photos' });
+    }
   }
   if (status !== undefined && !['approved', 'pending', 'rejected'].includes(status)) {
     return res.status(400).json({ error: 'Invalid status' });

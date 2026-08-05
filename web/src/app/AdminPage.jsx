@@ -3,6 +3,7 @@ import MembersSection from './admin/MembersSection.jsx';
 import FeedsSection from './admin/FeedsSection.jsx';
 import DisplaySection from './admin/DisplaySection.jsx';
 import AppointmentsSection from './admin/AppointmentsSection.jsx';
+import SystemSection from './admin/SystemSection.jsx';
 
 export default function AdminPage() {
   return (
@@ -14,6 +15,7 @@ export default function AdminPage() {
         <SubTab to="/app/admin/feeds">Calendar feeds</SubTab>
         <SubTab to="/app/admin/appointments">Appointments</SubTab>
         <SubTab to="/app/admin/display">Display</SubTab>
+        <SubTab to="/app/admin/system">System</SubTab>
       </div>
 
       <Routes>
@@ -21,6 +23,7 @@ export default function AdminPage() {
         <Route path="feeds" element={<FeedsSection />} />
         <Route path="appointments" element={<AppointmentsSection />} />
         <Route path="display" element={<DisplaySection />} />
+        <Route path="system" element={<SystemSection />} />
         <Route path="*" element={<Navigate to="/app/admin" replace />} />
       </Routes>
     </div>

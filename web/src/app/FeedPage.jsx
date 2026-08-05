@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, photoUrl } from '../api.js';
+import { useAuth } from '../lib/useAuth.jsx';
 import { formatShortDate } from '../lib/dates.js';
 
 export default function FeedPage() {
+  const { user } = useAuth();
   const [posts, setPosts] = useState([]);
   const [cursor, setCursor] = useState(null);
   const [hasMore, setHasMore] = useState(true);
@@ -78,6 +80,17 @@ export default function FeedPage() {
     }
   };
 
+  /** Pulls a photo off the frame without deleting it from the feed history. */
+  const hideFromFrame = async (post) => {
+    if (!confirm('Stop showing this photo on the frame? It stays in the app.')) return;
+    try {
+      await api.patch(`/photos/${post.id}`, { status: 'rejected' });
+      setPosts((prev) => prev.filter((p) => p.id !== post.id));
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-lg space-y-6">
       {error && <p className="text-sm text-rose-400">{error}</p>}
@@ -141,6 +154,14 @@ export default function FeedPage() {
                 <span className="text-sm font-medium text-slate-300">
                   {post.likeCount} {post.likeCount === 1 ? 'like' : 'likes'}
                 </span>
+              )}
+              {(user.isAdmin || post.uploadedBy === user.id) && (
+                <button
+                  onClick={() => hideFromFrame(post)}
+                  className="ml-auto text-xs text-slate-500 transition hover:text-amber-300"
+                >
+                  Hide from frame
+                </button>
               )}
             </div>
             {post.caption && (
