@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { photoUrl } from '../api.js';
 
-const CROSSFADE_MS = 1400;
 
 const PREFETCH_AHEAD = 4;
 
@@ -40,6 +39,12 @@ export default function PhotoFrame({
   shuffle,
   showCaptions,
   inset,
+  fit = 'contain',
+  edgeFadePercent = 18,
+  backdropOpacity = 40,
+  crossfadeMs = 1400,
+  kenburnsZoom = 12,
+  sidebarWidthRem = 34,
 }) {
   const [order, setOrder] = useState([]);
   const [index, setIndex] = useState(0);
@@ -88,7 +93,7 @@ export default function PhotoFrame({
     if (!currentPhoto) return undefined;
     if (lastShownRef.current && lastShownRef.current.id !== currentPhoto.id) {
       setPreviousPhoto(lastShownRef.current);
-      const id = setTimeout(() => setPreviousPhoto(null), CROSSFADE_MS + 100);
+      const id = setTimeout(() => setPreviousPhoto(null), crossfadeMs + 100);
       lastShownRef.current = currentPhoto;
       return () => clearTimeout(id);
     }
@@ -96,19 +101,20 @@ export default function PhotoFrame({
     return undefined;
   }, [currentPhoto]);
 
-  const paddingLeft = inset ? '28rem' : '0px';
+  const paddingLeft = inset ? `${sidebarWidthRem - 6}rem` : '0px';
 
   /**
    * A soft fade on every edge of the photo. The left side gets a much wider,
    * gentler ramp when the agenda is showing, so the photo dissolves into the
    * panel's gradient rather than butting against it.
    */
-  const edgeFade = [
-    'linear-gradient(to right, transparent 0%, black ' +
-      (inset ? '18%' : '4%') +
-      ', black 96%, transparent 100%)',
-    'linear-gradient(to bottom, transparent 0%, black 5%, black 95%, transparent 100%)',
-  ].join(', ');
+  const fade = Math.max(0, Math.min(45, edgeFadePercent));
+  const edgeFade = fade
+    ? [
+        `linear-gradient(to right, transparent 0%, black ${inset ? fade : Math.min(12, fade / 3)}%, black ${100 - Math.min(8, fade / 3)}%, transparent 100%)`,
+        `linear-gradient(to bottom, transparent 0%, black ${Math.min(8, fade / 3)}%, black ${100 - Math.min(8, fade / 3)}%, transparent 100%)`,
+      ].join(', ')
+    : undefined;
 
   if (!photos.length) {
     return (
@@ -134,6 +140,10 @@ export default function PhotoFrame({
           slideSeconds={slideSeconds}
           paddingLeft={paddingLeft}
           edgeFade={edgeFade}
+          fit={fit}
+          backdropOpacity={backdropOpacity}
+          crossfadeMs={crossfadeMs}
+          kenburnsZoom={kenburnsZoom}
           zIndex={0}
         />
       )}
@@ -145,6 +155,10 @@ export default function PhotoFrame({
           slideSeconds={slideSeconds}
           paddingLeft={paddingLeft}
           edgeFade={edgeFade}
+          fit={fit}
+          backdropOpacity={backdropOpacity}
+          crossfadeMs={crossfadeMs}
+          kenburnsZoom={kenburnsZoom}
           zIndex={10}
         />
       )}
@@ -156,7 +170,19 @@ export default function PhotoFrame({
   );
 }
 
-function Slide({ photo, visible, kenburns, slideSeconds, paddingLeft, zIndex, edgeFade }) {
+function Slide({
+  photo,
+  visible,
+  kenburns,
+  slideSeconds,
+  paddingLeft,
+  zIndex,
+  edgeFade,
+  fit = 'contain',
+  backdropOpacity = 40,
+  crossfadeMs = 1400,
+  kenburnsZoom = 12,
+}) {
   const [shown, setShown] = useState(!!visible);
   // A slide that fails to load (blip mid-fetch) retries once rather than
   // leaving a hole in the rotation.
@@ -179,7 +205,7 @@ function Slide({ photo, visible, kenburns, slideSeconds, paddingLeft, zIndex, ed
       className="absolute inset-0 transition-opacity ease-in-out"
       style={{
         opacity: shown ? 1 : 0,
-        transitionDuration: `${CROSSFADE_MS}ms`,
+        transitionDuration: `${crossfadeMs}ms`,
         zIndex,
       }}
     >
@@ -188,7 +214,8 @@ function Slide({ photo, visible, kenburns, slideSeconds, paddingLeft, zIndex, ed
         src={src}
         alt=""
         aria-hidden="true"
-        className="absolute inset-0 h-full w-full scale-110 object-cover opacity-40 blur-3xl"
+        className="absolute inset-0 h-full w-full scale-110 object-cover blur-3xl"
+        style={{ opacity: backdropOpacity / 100 }}
       />
       <div
         className="absolute inset-0 flex items-center justify-center"
@@ -205,11 +232,18 @@ function Slide({ photo, visible, kenburns, slideSeconds, paddingLeft, zIndex, ed
           src={src}
           alt={photo.caption || ''}
           onError={retry}
-          className="max-h-full max-w-full object-contain drop-shadow-2xl"
+          className={
+            fit === 'cover'
+              ? 'h-full w-full object-cover'
+              : 'max-h-full max-w-full object-contain drop-shadow-2xl'
+          }
           style={
             kenburns
               ? {
                   animation: `kenburns ${slideSeconds + 2}s ease-out forwards`,
+                  // Drives the @keyframes via a custom property so the zoom
+                  // depth is adjustable without a second animation.
+                  '--kenburns-scale': 1 + kenburnsZoom / 100,
                 }
               : undefined
           }

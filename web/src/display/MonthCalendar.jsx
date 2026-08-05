@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { dayKey, formatEventTime, todayKey } from '../lib/dates.js';
+import { formatLocation } from '../lib/location.js';
 
 const WEEKDAYS_SUN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -35,6 +36,8 @@ export default function MonthCalendar({
   weekStartsOn = 1,
   canAddEvents,
   onAddEvent,
+  accent = '#38bdf8',
+  eventsPerDay = 3,
 }) {
   const now = new Date();
   const [cursor, setCursor] = useState({ year: now.getFullYear(), month: now.getMonth() });
@@ -113,22 +116,26 @@ export default function MonthCalendar({
               onClick={() => setSelected(cell.key)}
               className={[
                 'flex min-h-0 flex-col overflow-hidden rounded-xl border p-1.5 text-left transition',
-                isToday
-                  ? 'border-sky-500/60 bg-sky-500/10'
-                  : 'border-slate-800/80 active:bg-white/5',
+                isToday ? '' : 'border-slate-800/80 active:bg-white/5',
                 cell.inMonth ? 'bg-slate-900/40' : 'bg-transparent opacity-40',
               ].join(' ')}
+              style={
+                isToday
+                  ? { borderColor: `${accent}99`, backgroundColor: `${accent}1a` }
+                  : undefined
+              }
             >
               <span
                 className={[
                   'mb-1 shrink-0 text-sm font-medium tabular-nums',
-                  isToday ? 'text-sky-300' : 'text-slate-400',
+                  isToday ? '' : 'text-slate-400',
                 ].join(' ')}
+                style={isToday ? { color: accent } : undefined}
               >
                 {cell.day}
               </span>
               <span className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden">
-                {dayEvents.slice(0, 3).map((event) => (
+                {dayEvents.slice(0, eventsPerDay).map((event) => (
                   <span
                     key={event.id}
                     className="truncate rounded px-1 py-0.5 text-xs leading-tight text-slate-100"
@@ -140,8 +147,10 @@ export default function MonthCalendar({
                     {event.title}
                   </span>
                 ))}
-                {dayEvents.length > 3 && (
-                  <span className="px-1 text-xs text-slate-500">+{dayEvents.length - 3} more</span>
+                {dayEvents.length > eventsPerDay && (
+                  <span className="px-1 text-xs text-slate-500">
+                    +{dayEvents.length - eventsPerDay} more
+                  </span>
                 )}
               </span>
             </button>
@@ -217,7 +226,9 @@ function DaySheet({ dayKeyValue, events, timezone, clock24, canAddEvents, onAdd,
                   <p className="text-lg font-medium text-slate-100">{event.title}</p>
                   <p className="text-sm text-slate-400">
                     {formatEventTime(event, { clock24, timezone })}
-                    {event.location ? ` · ${event.location}` : ''}
+                    {formatLocation(event.location, 60)
+                      ? ` · ${formatLocation(event.location, 60)}`
+                      : ''}
                   </p>
                 </div>
               </li>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-export default function Clock({ clock24, timezone, wide }) {
+export default function Clock({ clock24, timezone, sizeRem = 5.5, showDate = true }) {
   const [now, setNow] = useState(() => new Date());
 
   // Tick on the minute boundary rather than every second — nothing on screen
@@ -37,14 +37,20 @@ export default function Clock({ clock24, timezone, wide }) {
   return (
     <header className="shrink-0">
       <div
-        className={[
-          'font-semibold leading-none tracking-tight text-white tabular-nums',
-          wide ? 'text-[7rem]' : 'text-[5.5rem]',
-        ].join(' ')}
+        className="font-semibold leading-none tracking-tight text-white tabular-nums"
+        style={{ fontSize: `${sizeRem}rem` }}
       >
         {time}
       </div>
-      <div className="mt-3 text-2xl font-light text-slate-300">{date}</div>
+      {showDate && (
+        <div
+          className="mt-3 font-light text-slate-300"
+          // Scales with the clock so the pair keeps its proportions.
+          style={{ fontSize: `${Math.max(1, sizeRem * 0.27)}rem` }}
+        >
+          {date}
+        </div>
+      )}
     </header>
   );
 }

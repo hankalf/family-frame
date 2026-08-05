@@ -11,7 +11,14 @@ import { db, getSetting, nowIso } from '../db.js';
 
 const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
 const GEOCODE_URL = 'https://geocoding-api.open-meteo.com/v1/search';
+// Open-Meteo has no alerts endpoint. The US National Weather Service publishes
+// them free with no key; outside the US this simply returns nothing and the
+// banner never appears.
+const ALERTS_URL = 'https://api.weather.gov/alerts/active';
 const FETCH_TIMEOUT_MS = 30_000;
+
+/** Only the tiers worth interrupting a photo frame for. */
+const ALERT_SEVERITY = { Extreme: 4, Severe: 3, Moderate: 2, Minor: 1, Unknown: 0 };
 
 const UNITS = {
   imperial: { temperature_unit: 'fahrenheit', wind_speed_unit: 'mph', precipitation_unit: 'inch' },
@@ -99,6 +106,42 @@ function shapeForecast(raw, unitKey) {
 /** Exposed for tests — the shaping is where the timestamp contract lives. */
 export const shapeForecastForTest = shapeForecast;
 
+/**
+ * Active severe-weather alerts for the frame's location. Best effort by
+ * design: any failure returns an empty list rather than throwing, because a
+ * missing alert must never take the forecast down with it.
+ */
+async function fetchAlerts(lat, lon) {
+  const minimum = ALERT_SEVERITY[getSetting('weather_alert_min_severity')] ?? 3;
+  try {
+    const data = await fetchJson(`${ALERTS_URL}?point=${lat},${lon}&status=actual&message_type=alert`);
+    const now = Date.now();
+
+    return (data.features || [])
+      .map((feature) => feature.properties || {})
+      .filter((alert) => (ALERT_SEVERITY[alert.severity] ?? 0) >= minimum)
+      .filter((alert) => !alert.expires || new Date(alert.expires).getTime() > now)
+      .map((alert) => ({
+        id: alert.id,
+        event: alert.event,
+        severity: alert.severity,
+        urgency: alert.urgency,
+        headline: alert.headline,
+        // The full description can be pages of text; the frame shows a line.
+        summary: (alert.description || '').replace(/\s+/g, ' ').trim().slice(0, 400),
+        instruction: (alert.instruction || '').replace(/\s+/g, ' ').trim().slice(0, 300),
+        expires: alert.expires,
+      }))
+      .sort((a, b) => (ALERT_SEVERITY[b.severity] ?? 0) - (ALERT_SEVERITY[a.severity] ?? 0))
+      .slice(0, 3);
+  } catch (err) {
+    // Outside the US this 404s, which is expected, not an error worth logging
+    // loudly on every poll.
+    if (!/404/.test(err.message)) console.warn(`[weather] alerts unavailable: ${err.message}`);
+    return [];
+  }
+}
+
 /** Fetches and caches once. Returns {ok, error?, skipped?}. */
 export async function fetchWeatherNow() {
   if (getSetting('weather_enabled') !== 'true') return { skipped: true, reason: 'Weather is off' };
@@ -129,6 +172,9 @@ export async function fetchWeatherNow() {
   try {
     const raw = await fetchJson(`${FORECAST_URL}?${params}`);
     const payload = shapeForecast(raw, unitKey);
+    // Alerts are fetched alongside but never allowed to fail the forecast.
+    payload.alerts =
+      getSetting('weather_alerts_enabled') === 'true' ? await fetchAlerts(lat, lon) : [];
     db.prepare(
       `INSERT INTO weather_cache (id, payload, fetched_at, last_error)
        VALUES ('current', @payload, @now, NULL)

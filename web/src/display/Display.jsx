@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api, getDisplayToken, setDisplayToken } from '../api.js';
 import { isNightTime } from '../lib/dates.js';
+
 import PhotoFrame from './PhotoFrame.jsx';
 import Agenda from './Agenda.jsx';
 import Clock from './Clock.jsx';
@@ -9,6 +10,10 @@ import Weather from './Weather.jsx';
 import WeatherScreen from './WeatherScreen.jsx';
 import MonthCalendar from './MonthCalendar.jsx';
 import QuickAddEvent from './QuickAddEvent.jsx';
+import Quote from './Quote.jsx';
+import AlertBanner from './AlertBanner.jsx';
+import { quoteForDay } from '../lib/quotes.js';
+import { todayKey } from '../lib/dates.js';
 
 // Data refresh, not page reload — the slideshow keeps its place. Cheap against
 // the LAN server; note that external .ics feeds still only change as often as
@@ -130,6 +135,22 @@ export default function Display() {
     return () => clearInterval(id);
   }, [settings]);
 
+  /**
+   * Scale every rem-based size at once by moving the root font size. Tailwind's
+   * text/spacing scales are rem-based and resolve against <html>, not a parent,
+   * so this is the only place that scales the whole display uniformly — and
+   * because the sidebar width is in rem too, the panel widens to match.
+   */
+  const displayScale = Math.min(200, Math.max(50, Number(settings?.display_scale) || 100));
+  useEffect(() => {
+    const root = document.documentElement;
+    const previous = root.style.fontSize;
+    root.style.fontSize = `${(16 * displayScale) / 100}px`;
+    return () => {
+      root.style.fontSize = previous;
+    };
+  }, [displayScale]);
+
   // Keep the screen awake. Browsers only grant this after the page is visible,
   // and drop it on tab switch, so re-request on visibility change.
   useEffect(() => {
@@ -237,6 +258,57 @@ export default function Display() {
     return () => clearInterval(id);
   }, [token, layoutForHeartbeat]);
 
+  /**
+   * The day's quote, shown only when the agenda leaves room for it. Measuring
+   * accounts for the quote's own height in both states — otherwise showing it
+   * would shrink the space that justified showing it, and it would flicker.
+   *
+   * These hooks must stay above the early returns below: React requires the
+   * same hooks in the same order on every render.
+   */
+  const quote =
+    settings?.quotes_enabled === 'true'
+      ? quoteForDay(todayKey(settings.timezone), {
+          useBuiltIn: settings.quotes_use_builtin === 'true',
+          custom: settings.quotes_custom,
+        })
+      : null;
+
+  const agendaBoxRef = useRef(null);
+  const quoteRef = useRef(null);
+  const [quoteFits, setQuoteFits] = useState(false);
+
+  useEffect(() => {
+    if (!quote) {
+      setQuoteFits(false);
+      return undefined;
+    }
+    const measure = () => {
+      const box = agendaBoxRef.current;
+      const agendaRoot = box?.firstElementChild;
+      if (!box || !agendaRoot) return;
+
+      // The agenda stretches to fill its box, so scrollHeight is never less
+      // than clientHeight and can't tell us the day is quiet. Sum the day
+      // sections instead to get the content's natural height.
+      const sections = [...agendaRoot.children];
+      const gap = 24; // matches space-y-6
+      const contentHeight =
+        sections.reduce((sum, el) => sum + el.getBoundingClientRect().height, 0) +
+        Math.max(0, sections.length - 1) * gap;
+
+      const quoteHeight = quoteRef.current?.offsetHeight ?? 0;
+      // The space the agenda would have if the quote weren't rendered.
+      const available = box.clientHeight + quoteHeight;
+      const fits = contentHeight + (quoteFits ? 24 : 96) <= available;
+      setQuoteFits((prev) => (prev === fits ? prev : fits));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    if (agendaBoxRef.current) observer.observe(agendaBoxRef.current);
+    return () => observer.disconnect();
+  }, [quote, quoteFits, agendaQuery.data, settings?.agenda_text_size]);
+
   const unauthorized =
     settingsQuery.error?.status === 401 || playlistQuery.error?.status === 401;
 
@@ -252,6 +324,8 @@ export default function Display() {
   const weatherReady =
     settings.weather_enabled === 'true' && !!settings.weather_latitude;
   const menuItems = LAYOUTS.filter((item) => item.id !== 'weather' || weatherReady);
+
+  const accent = settings.accent_color || '#38bdf8';
 
   // Decorative bezel: the outer div is the "frame", the inner div is the screen.
   const borderWidth = Math.min(120, Math.max(0, Number(settings.frame_border_width) || 0));
@@ -279,6 +353,12 @@ export default function Display() {
           shuffle={settings.shuffle === 'true'}
           showCaptions={settings.show_captions === 'true'}
           inset={showCalendar}
+          fit={settings.photo_fit}
+          edgeFadePercent={Number(settings.photo_edge_fade) || 0}
+          backdropOpacity={Number(settings.photo_backdrop_opacity) || 0}
+          crossfadeMs={Number(settings.photo_crossfade_ms) || 1400}
+          kenburnsZoom={Number(settings.kenburns_zoom) || 0}
+          sidebarWidthRem={Number(settings.sidebar_width_rem) || 34}
         />
       )}
 
@@ -293,21 +373,31 @@ export default function Display() {
             weekStartsOn={Number(settings.week_starts_on) === 0 ? 0 : 1}
             canAddEvents={settings.frame_add_events === 'true'}
             onAddEvent={setQuickAddDate}
+            accent={accent}
+            eventsPerDay={Number(settings.month_events_per_day) || 3}
           />
         </div>
       )}
 
       {showCalendar && showPhotos && (
         <aside
-          className="absolute inset-y-0 left-0 z-20 flex w-[34rem] max-w-[42vw] flex-col gap-6 p-9 pr-20"
+          className="absolute inset-y-0 left-0 z-20 flex max-w-[46vw] flex-col gap-6 p-9 pr-20"
           style={{
+            width: `${Number(settings.sidebar_width_rem) || 34}rem`,
             // A long, eased ramp rather than Tailwind's 3-stop gradient — it
             // meets the photo's own edge fade with no visible seam.
             backgroundImage:
               'linear-gradient(to right, rgb(2 6 23) 0%, rgb(2 6 23) 45%, rgba(2,6,23,0.92) 62%, rgba(2,6,23,0.65) 78%, rgba(2,6,23,0.28) 90%, transparent 100%)',
           }}
         >
-          <Clock clock24={settings.clock_24h === 'true'} timezone={settings.timezone} />
+          {settings.show_clock === 'true' && (
+            <Clock
+              clock24={settings.clock_24h === 'true'}
+              timezone={settings.timezone}
+              sizeRem={Number(settings.clock_size_rem) || 5.5}
+              showDate={settings.show_date === 'true'}
+            />
+          )}
           {weatherReady && (
             <Weather
               payload={weatherQuery.data}
@@ -315,13 +405,20 @@ export default function Display() {
               onOpen={() => pickLayout('weather')}
             />
           )}
-          <Agenda
-            events={agendaQuery.data || []}
-            timezone={settings.timezone}
-            clock24={settings.clock_24h === 'true'}
-            loading={!agendaQuery.data}
-            columns={1}
-          />
+          <div ref={agendaBoxRef} className="min-h-0 flex-1 overflow-hidden">
+            <Agenda
+              events={agendaQuery.data || []}
+              timezone={settings.timezone}
+              clock24={settings.clock_24h === 'true'}
+              loading={!agendaQuery.data}
+              columns={1}
+              textSize={settings.agenda_text_size}
+              accent={accent}
+              autoFit={settings.auto_fit === 'true'}
+              scale={displayScale}
+            />
+          </div>
+          {quoteFits && <Quote ref={quoteRef} quote={quote} accent={accent} />}
         </aside>
       )}
 
@@ -340,7 +437,16 @@ export default function Display() {
 
       {weatherView && <WeatherScreen payload={weatherQuery.data} settings={settings} />}
 
-      <LayoutMenu layout={layout} items={menuItems} onPick={pickLayout} />
+      <AlertBanner alerts={weatherQuery.data?.weather?.alerts} />
+
+      <LayoutMenu
+        layout={layout}
+        items={menuItems}
+        onPick={pickLayout}
+        idleOpacity={Number(settings.menu_idle_opacity) || 30}
+        wakeSeconds={Number(settings.menu_wake_seconds) || 6}
+        accent={accent}
+      />
 
         <OfflineBadge
           offline={!!(agendaQuery.error || playlistQuery.error || settingsQuery.error)}
@@ -370,7 +476,14 @@ const LAYOUTS = [
  * Minimal touch menu, bottom-center. Sits dim so it doesn't draw the eye;
  * any touch/click on the screen wakes it to full opacity for a few seconds.
  */
-function LayoutMenu({ layout, items = LAYOUTS, onPick }) {
+function LayoutMenu({
+  layout,
+  items = LAYOUTS,
+  onPick,
+  idleOpacity = 30,
+  wakeSeconds = 6,
+  accent = '#38bdf8',
+}) {
   const [awake, setAwake] = useState(false);
   const timerRef = useRef(null);
 
@@ -378,14 +491,14 @@ function LayoutMenu({ layout, items = LAYOUTS, onPick }) {
     const wake = () => {
       setAwake(true);
       clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setAwake(false), 6000);
+      timerRef.current = setTimeout(() => setAwake(false), Math.max(1, wakeSeconds) * 1000);
     };
     window.addEventListener('pointerdown', wake, { passive: true });
     return () => {
       window.removeEventListener('pointerdown', wake);
       clearTimeout(timerRef.current);
     };
-  }, []);
+  }, [wakeSeconds]);
 
   return (
     <nav
@@ -394,9 +507,8 @@ function LayoutMenu({ layout, items = LAYOUTS, onPick }) {
         'absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 gap-1 rounded-full',
         'border border-white/10 bg-slate-950/70 p-1.5 backdrop-blur-md',
         'transition-opacity duration-500',
-        awake ? 'opacity-100' : 'opacity-30',
       ].join(' ')}
-      style={{ touchAction: 'manipulation' }}
+      style={{ touchAction: 'manipulation', opacity: awake ? 1 : idleOpacity / 100 }}
     >
       {items.map(({ id, label, icon: Icon }) => {
         const active = layout === id;
@@ -411,6 +523,7 @@ function LayoutMenu({ layout, items = LAYOUTS, onPick }) {
               'transition select-none',
               active ? 'bg-white/15 text-white' : 'text-slate-400 active:bg-white/10',
             ].join(' ')}
+            style={active ? { boxShadow: `inset 0 -2px 0 ${accent}` } : undefined}
           >
             <Icon />
             <span className="text-[10px] font-medium uppercase tracking-wider">{label}</span>

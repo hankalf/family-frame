@@ -141,6 +141,52 @@ export default function DisplaySection() {
             ]}
           />
         </Row>
+        <Row label="How photos fill the screen">
+          <Segmented
+            value={draft.photo_fit}
+            onChange={set('photo_fit')}
+            options={[
+              { value: 'contain', label: 'Whole photo' },
+              { value: 'cover', label: 'Fill screen' },
+            ]}
+          />
+        </Row>
+        <Slider
+          label="Edge softness"
+          hint="How far the photo fades out at the edges, so it blends into the agenda panel."
+          value={draft.photo_edge_fade}
+          onChange={set('photo_edge_fade')}
+          min={0}
+          max={45}
+          suffix="%"
+        />
+        <Slider
+          label="Blurred background"
+          hint="Visible behind photos that don't fill the screen."
+          value={draft.photo_backdrop_opacity}
+          onChange={set('photo_backdrop_opacity')}
+          min={0}
+          max={100}
+          suffix="%"
+        />
+        <Slider
+          label="Crossfade"
+          value={draft.photo_crossfade_ms}
+          onChange={set('photo_crossfade_ms')}
+          min={200}
+          max={4000}
+          step={100}
+          suffix="ms"
+        />
+        <Slider
+          label="Slow-zoom depth"
+          hint="Only applies with the Slow zoom transition."
+          value={draft.kenburns_zoom}
+          onChange={set('kenburns_zoom')}
+          min={0}
+          max={35}
+          suffix="%"
+        />
       </section>
 
       <section className="card space-y-4">
@@ -179,6 +225,16 @@ export default function DisplaySection() {
             ]}
           />
         </Row>
+        <Row label="Week starts on">
+          <Segmented
+            value={draft.week_starts_on}
+            onChange={set('week_starts_on')}
+            options={[
+              { value: '1', label: 'Monday' },
+              { value: '0', label: 'Sunday' },
+            ]}
+          />
+        </Row>
         <Row label="Timezone">
           <input
             className="field w-full max-w-xs font-mono text-sm"
@@ -187,6 +243,195 @@ export default function DisplaySection() {
             placeholder="e.g. Europe/Stockholm"
           />
         </Row>
+        <Row label="Events shown per day in the month grid">
+          <input
+            type="number"
+            min="1"
+            max="8"
+            className="field w-24"
+            value={draft.month_events_per_day}
+            onChange={(e) => set('month_events_per_day')(e.target.value)}
+          />
+        </Row>
+      </section>
+
+      <section className="card space-y-4">
+        <h2 className="font-medium">Sizing &amp; colour</h2>
+        <p className="-mt-2 text-sm text-slate-400">
+          Everything here is about reading the frame from across the room.
+        </p>
+
+        <Slider
+          label="Overall text size"
+          hint="Scales everything on the display together — clock, agenda, weather, month grid. Start here; the controls below are for fine-tuning."
+          value={draft.display_scale}
+          onChange={set('display_scale')}
+          min={70}
+          max={160}
+          step={5}
+          suffix="%"
+        />
+        <label className="flex cursor-pointer items-start justify-between gap-3 text-sm">
+          <span>
+            <span className="text-slate-300">Fit the display automatically</span>
+            <span className="mt-0.5 block text-xs text-slate-500">
+              With larger text, shows only the days that fit completely instead of slicing one in
+              half. The side panel widens to match.
+            </span>
+          </span>
+          <input
+            type="checkbox"
+            className="mt-0.5 h-5 w-5 shrink-0 accent-sky-500"
+            checked={draft.auto_fit === 'true'}
+            onChange={(e) => set('auto_fit')(e.target.checked ? 'true' : 'false')}
+          />
+        </label>
+
+        <Slider
+          label="Side panel width"
+          value={draft.sidebar_width_rem}
+          onChange={set('sidebar_width_rem')}
+          min={22}
+          max={46}
+          format={(v) => `${v} rem`}
+        />
+        <Row label="Show the clock">
+          <Segmented
+            value={draft.show_clock}
+            onChange={set('show_clock')}
+            options={[
+              { value: 'true', label: 'On' },
+              { value: 'false', label: 'Off' },
+            ]}
+          />
+        </Row>
+        {draft.show_clock === 'true' && (
+          <>
+            <Slider
+              label="Clock size"
+              value={draft.clock_size_rem}
+              onChange={set('clock_size_rem')}
+              min={2}
+              max={11}
+              step={0.5}
+              format={(v) => `${v} rem`}
+            />
+            <Row label="Show the date under it">
+              <Segmented
+                value={draft.show_date}
+                onChange={set('show_date')}
+                options={[
+                  { value: 'true', label: 'On' },
+                  { value: 'false', label: 'Off' },
+                ]}
+              />
+            </Row>
+          </>
+        )}
+        <Row label="Agenda text size">
+          <Segmented
+            value={draft.agenda_text_size}
+            onChange={set('agenda_text_size')}
+            options={[
+              { value: 'small', label: 'S' },
+              { value: 'normal', label: 'M' },
+              { value: 'large', label: 'L' },
+              { value: 'xlarge', label: 'XL' },
+            ]}
+          />
+        </Row>
+        <Row label="Accent colour">
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              className="h-11 w-14 cursor-pointer rounded-xl border border-slate-700 bg-slate-900"
+              value={draft.accent_color || '#38bdf8'}
+              onChange={(e) => set('accent_color')(e.target.value)}
+            />
+            <div className="flex gap-1.5">
+              {['#38bdf8', '#34d399', '#fbbf24', '#f472b6', '#a78bfa'].map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  aria-label={`Accent ${color}`}
+                  onClick={() => set('accent_color')(color)}
+                  className={[
+                    'h-7 w-7 rounded-full border transition',
+                    draft.accent_color === color
+                      ? 'border-white ring-2 ring-white/30'
+                      : 'border-slate-600',
+                  ].join(' ')}
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </div>
+          </div>
+        </Row>
+      </section>
+
+      <section className="card space-y-4">
+        <h2 className="font-medium">Touch menu</h2>
+        <Slider
+          label="Resting visibility"
+          hint="How visible the menu is when nobody has touched the screen recently."
+          value={draft.menu_idle_opacity}
+          onChange={set('menu_idle_opacity')}
+          min={0}
+          max={100}
+          suffix="%"
+        />
+        <Slider
+          label="Stays lit for"
+          value={draft.menu_wake_seconds}
+          onChange={set('menu_wake_seconds')}
+          min={2}
+          max={60}
+          suffix="s"
+        />
+      </section>
+
+      <section className="card space-y-4">
+        <h2 className="font-medium">Daily quote</h2>
+        <p className="-mt-2 text-sm text-slate-400">
+          Shown under the agenda on quiet days, when there's room for it. Changes at midnight, and
+          every frame in the house shows the same one.
+        </p>
+        <Row label="Show a daily quote">
+          <Segmented
+            value={draft.quotes_enabled}
+            onChange={set('quotes_enabled')}
+            options={[
+              { value: 'true', label: 'On' },
+              { value: 'false', label: 'Off' },
+            ]}
+          />
+        </Row>
+        {draft.quotes_enabled === 'true' && (
+          <>
+            <Row label="Include the built-in quotes">
+              <Segmented
+                value={draft.quotes_use_builtin}
+                onChange={set('quotes_use_builtin')}
+                options={[
+                  { value: 'true', label: 'Yes' },
+                  { value: 'false', label: 'Only mine' },
+                ]}
+              />
+            </Row>
+            <div>
+              <label className="label">Your own quotes</label>
+              <textarea
+                className="field min-h-28 text-sm"
+                placeholder={'One per line. Add an author with a dash:\nBe kind. — Grandma'}
+                value={draft.quotes_custom || ''}
+                onChange={(e) => set('quotes_custom')(e.target.value)}
+              />
+              <p className="mt-1.5 text-xs text-slate-600">
+                Family sayings and in-jokes land better than anything stock.
+              </p>
+            </div>
+          </>
+        )}
       </section>
 
       <section className="card space-y-4">
@@ -247,6 +492,36 @@ export default function DisplaySection() {
             ]}
           />
         </Row>
+        <Row label="Severe weather banner">
+          <Segmented
+            value={draft.weather_alerts_enabled}
+            onChange={set('weather_alerts_enabled')}
+            options={[
+              { value: 'true', label: 'On' },
+              { value: 'false', label: 'Off' },
+            ]}
+          />
+        </Row>
+        {draft.weather_alerts_enabled === 'true' && (
+          <>
+            <Row label="Warn at">
+              <Segmented
+                value={draft.weather_alert_min_severity}
+                onChange={set('weather_alert_min_severity')}
+                options={[
+                  { value: 'Extreme', label: 'Extreme' },
+                  { value: 'Severe', label: 'Severe+' },
+                  { value: 'Moderate', label: 'Moderate+' },
+                ]}
+              />
+            </Row>
+            <p className="-mt-1 text-xs text-slate-600">
+              Alerts come from the US National Weather Service, which is free and needs no
+              account. Outside the US no alerts are published, so the banner simply never
+              appears.
+            </p>
+          </>
+        )}
         <Row label="Refresh every">
           <div className="flex items-center gap-2">
             <input
@@ -621,6 +896,29 @@ function Row({ label, children }) {
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
       <span className="text-sm text-slate-300">{label}</span>
       {children}
+    </div>
+  );
+}
+
+/** Labelled slider with its current value shown — the frame is in another room. */
+function Slider({ label, hint, value, onChange, min, max, step = 1, suffix = '', format }) {
+  const display = format ? format(value) : `${value}${suffix}`;
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-sm text-slate-300">{label}</span>
+        <span className="text-sm tabular-nums text-slate-400">{display}</span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="mt-1.5 w-full accent-sky-500"
+      />
+      {hint && <p className="mt-1 text-xs text-slate-600">{hint}</p>}
     </div>
   );
 }

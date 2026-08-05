@@ -186,6 +186,9 @@ export const DEFAULT_SETTINGS = {
   weather_poll_minutes: '15',
   weather_radar_enabled: 'true',
   weather_return_minutes: '5', // auto-return from the Weather tab; 0 = stay
+  // Severe-weather banner (US National Weather Service; silent elsewhere)
+  weather_alerts_enabled: 'true',
+  weather_alert_min_severity: 'Severe', // Extreme | Severe | Moderate | Minor
   // Let people add events by tapping a day on the frame itself. The frame is
   // authenticated by the display token, so this is off-limits unless enabled.
   frame_add_events: 'true',
@@ -193,6 +196,30 @@ export const DEFAULT_SETTINGS = {
   frame_border_width: '0',
   frame_border_color: '#1e293b',
   frame_border_radius: '0',
+  // Photo rendering
+  photo_fit: 'contain', // 'contain' keeps the whole photo; 'cover' fills the screen
+  photo_edge_fade: '18', // % of width the photo fades out over, next to the panel
+  photo_backdrop_opacity: '40', // blurred fill behind a photo that doesn't fill
+  photo_crossfade_ms: '1400',
+  kenburns_zoom: '12', // % the slow zoom travels
+  // Sidebar and typography
+  sidebar_width_rem: '34',
+  clock_size_rem: '5.5',
+  agenda_text_size: 'normal', // small | normal | large | xlarge
+  display_scale: '100', // scales all display text together, 70-160%
+  auto_fit: 'true', // widen the panel and trim the agenda so bigger text still fits
+  accent_color: '#38bdf8',
+  show_clock: 'true',
+  show_date: 'true',
+  // Touch menu
+  menu_idle_opacity: '30',
+  menu_wake_seconds: '6',
+  // Month grid
+  month_events_per_day: '3',
+  // Daily quote, shown under the agenda when there's room
+  quotes_enabled: 'true',
+  quotes_use_builtin: 'true',
+  quotes_custom: '',
   // Backups — photos are the one thing here that can't be recreated
   backup_enabled: 'true',
   backup_path: '', // '' = <data>/backups; point at a NAS mount for off-box copies
