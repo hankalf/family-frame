@@ -299,10 +299,13 @@ export default function Display() {
 
       {showCalendar && showPhotos && (
         <aside
-          className={[
-            'absolute inset-y-0 left-0 z-20 flex w-[30rem] max-w-[38vw] flex-col gap-6 p-9',
-            'bg-gradient-to-r from-slate-950 via-slate-950/95 to-transparent',
-          ].join(' ')}
+          className="absolute inset-y-0 left-0 z-20 flex w-[34rem] max-w-[42vw] flex-col gap-6 p-9 pr-20"
+          style={{
+            // A long, eased ramp rather than Tailwind's 3-stop gradient — it
+            // meets the photo's own edge fade with no visible seam.
+            backgroundImage:
+              'linear-gradient(to right, rgb(2 6 23) 0%, rgb(2 6 23) 45%, rgba(2,6,23,0.92) 62%, rgba(2,6,23,0.65) 78%, rgba(2,6,23,0.28) 90%, transparent 100%)',
+          }}
         >
           <Clock clock24={settings.clock_24h === 'true'} timezone={settings.timezone} />
           {weatherReady && (

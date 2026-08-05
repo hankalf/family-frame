@@ -16,6 +16,7 @@ const formatBytes = (bytes) => {
 
 export default function SystemSection() {
   const [report, setReport] = useState(null);
+  const [storage, setStorage] = useState(null);
   const [backups, setBackups] = useState(null);
   const [settings, setSettings] = useState(null);
   const [draft, setDraft] = useState({});
@@ -24,12 +25,14 @@ export default function SystemSection() {
 
   const load = useCallback(async () => {
     try {
-      const [health, backupList, settingsData] = await Promise.all([
+      const [health, storageReport, backupList, settingsData] = await Promise.all([
         api.get('/system/health-report'),
+        api.get('/system/storage'),
         api.get('/backups'),
         api.get('/settings'),
       ]);
       setReport(health);
+      setStorage(storageReport);
       setBackups(backupList);
       setSettings(settingsData.settings);
       setDraft(settingsData.settings);
@@ -44,7 +47,7 @@ export default function SystemSection() {
     return () => clearInterval(id);
   }, [load]);
 
-  if (!report || !backups || !settings) {
+  if (!report || !backups || !settings || !storage) {
     return <div className="h-40 animate-pulse rounded-2xl bg-slate-900" />;
   }
 
@@ -149,6 +152,115 @@ export default function SystemSection() {
             }
           />
         </dl>
+      </section>
+
+      {/* Storage */}
+      <section className="card space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="font-medium">Storage</h2>
+          <button
+            className="btn-ghost text-sm"
+            disabled={busy === 'cache'}
+            onClick={() =>
+              run('cache', async () => {
+                const result = await api.post('/system/storage/clear-cache');
+                setStorage(result.storage);
+                return { ok: true, freedCache: result.freed, removed: result.removed };
+              })
+            }
+          >
+            {busy === 'cache' ? 'Clearing…' : 'Clear resized copies'}
+          </button>
+        </div>
+
+        {storage.disk && (
+          <div className="space-y-1.5">
+            <DiskBar storage={storage} />
+            <p className="text-xs text-slate-500">
+              {formatBytes(storage.disk.free)} free of {formatBytes(storage.disk.total)} on the
+              drive
+            </p>
+          </div>
+        )}
+
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
+          <Stat
+            label="Photos"
+            value={formatBytes(storage.photos.originals)}
+            sub={`${storage.photos.files} files`}
+          />
+          <Stat
+            label="Resized copies"
+            value={formatBytes(storage.photos.derived)}
+            sub="rebuilt on demand"
+          />
+          <Stat label="Database" value={formatBytes(storage.database)} />
+          <Stat
+            label="Backups"
+            value={formatBytes(storage.backups.unique)}
+            sub={
+              storage.backups.bytes > storage.backups.unique
+                ? `+${formatBytes(storage.backups.bytes - storage.backups.unique)} shared`
+                : undefined
+            }
+          />
+        </dl>
+
+        {storage.backups.bytes > storage.backups.unique && (
+          <p className="text-xs text-slate-600">
+            Backups hardlink the photos, so most of what they appear to contain costs no extra
+            disk — only the {formatBytes(storage.backups.unique)} above is additional.
+          </p>
+        )}
+
+        {storage.byUser.length > 0 && (
+          <div className="space-y-2 border-t border-slate-800 pt-3">
+            <h3 className="text-sm font-medium text-slate-300">Who's using it</h3>
+            <ul className="space-y-1.5">
+              {storage.byUser.map((row) => {
+                const share = storage.photos.originals
+                  ? (row.bytes / storage.photos.originals) * 100
+                  : 0;
+                return (
+                  <li key={row.name} className="flex items-center gap-3 text-sm">
+                    <span className="w-32 shrink-0 truncate text-slate-300">{row.name}</span>
+                    <span className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-800">
+                      <span
+                        className="block h-full rounded-full bg-sky-500"
+                        style={{ width: `${Math.max(2, share)}%` }}
+                      />
+                    </span>
+                    <span className="w-16 shrink-0 text-right tabular-nums text-slate-400">
+                      {formatBytes(row.bytes)}
+                    </span>
+                    <span className="w-14 shrink-0 text-right text-xs tabular-nums text-slate-600">
+                      {row.count}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+
+        {storage.largest.length > 0 && (
+          <details className="border-t border-slate-800 pt-3">
+            <summary className="cursor-pointer text-sm font-medium text-slate-300">
+              Largest photos
+            </summary>
+            <ul className="mt-2 space-y-1 text-xs text-slate-500">
+              {storage.largest.map((photo) => (
+                <li key={photo.id} className="flex items-center gap-3">
+                  <span className="min-w-0 flex-1 truncate">{photo.name || photo.id}</span>
+                  <span className="shrink-0 text-slate-600">{photo.addedBy}</span>
+                  <span className="w-16 shrink-0 text-right tabular-nums">
+                    {formatBytes(photo.bytes)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
       </section>
 
       {/* Alerts */}
@@ -292,11 +404,57 @@ export default function SystemSection() {
   );
 }
 
-function Stat({ label, value }) {
+function Stat({ label, value, sub }) {
   return (
     <div>
       <dt className="text-slate-500">{label}</dt>
       <dd className="text-slate-200">{value}</dd>
+      {sub && <dd className="text-xs text-slate-600">{sub}</dd>}
+    </div>
+  );
+}
+
+/** Where the disk is going: this app's share, everything else, and free space. */
+function DiskBar({ storage }) {
+  const { total } = storage.disk;
+  const segments = [
+    { key: 'photos', label: 'Photos', bytes: storage.photos.originals, color: 'bg-sky-500' },
+    { key: 'derived', label: 'Resized', bytes: storage.photos.derived, color: 'bg-sky-700' },
+    { key: 'backups', label: 'Backups', bytes: storage.backups.unique, color: 'bg-emerald-600' },
+    { key: 'db', label: 'Database', bytes: storage.database, color: 'bg-violet-500' },
+  ];
+  const ours = segments.reduce((sum, s) => sum + s.bytes, 0);
+  const other = Math.max(0, storage.disk.used - ours);
+
+  return (
+    <div>
+      <div className="flex h-3 w-full overflow-hidden rounded-full bg-slate-800">
+        {segments.map((segment) => (
+          <span
+            key={segment.key}
+            className={segment.color}
+            style={{ width: `${(segment.bytes / total) * 100}%` }}
+            title={`${segment.label}: ${formatBytes(segment.bytes)}`}
+          />
+        ))}
+        <span
+          className="bg-slate-700"
+          style={{ width: `${(other / total) * 100}%` }}
+          title={`Everything else on the drive: ${formatBytes(other)}`}
+        />
+      </div>
+      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+        {segments.map((segment) => (
+          <span key={segment.key} className="flex items-center gap-1.5">
+            <span className={`h-2 w-2 rounded-full ${segment.color}`} />
+            {segment.label}
+          </span>
+        ))}
+        <span className="flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-slate-700" />
+          Other
+        </span>
+      </div>
     </div>
   );
 }
@@ -305,6 +463,9 @@ function describe(result) {
   if (!result) return 'Done.';
   if (result.skipped) return result.reason || 'Skipped.';
   if (result.error) return result.error;
+  if (result.freedCache !== undefined) {
+    return `Cleared ${result.removed} resized copies (${formatBytes(result.freedCache)}). They rebuild as photos are shown.`;
+  }
   if (result.photos !== undefined) {
     return `Backed up ${result.photos} photos (${formatBytes(result.bytes)}).`;
   }

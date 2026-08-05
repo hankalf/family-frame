@@ -98,6 +98,18 @@ export default function PhotoFrame({
 
   const paddingLeft = inset ? '28rem' : '0px';
 
+  /**
+   * A soft fade on every edge of the photo. The left side gets a much wider,
+   * gentler ramp when the agenda is showing, so the photo dissolves into the
+   * panel's gradient rather than butting against it.
+   */
+  const edgeFade = [
+    'linear-gradient(to right, transparent 0%, black ' +
+      (inset ? '18%' : '4%') +
+      ', black 96%, transparent 100%)',
+    'linear-gradient(to bottom, transparent 0%, black 5%, black 95%, transparent 100%)',
+  ].join(', ');
+
   if (!photos.length) {
     return (
       <div className="absolute inset-0 flex items-center justify-center bg-slate-950">
@@ -121,6 +133,7 @@ export default function PhotoFrame({
           kenburns={false}
           slideSeconds={slideSeconds}
           paddingLeft={paddingLeft}
+          edgeFade={edgeFade}
           zIndex={0}
         />
       )}
@@ -131,6 +144,7 @@ export default function PhotoFrame({
           kenburns={transition === 'kenburns'}
           slideSeconds={slideSeconds}
           paddingLeft={paddingLeft}
+          edgeFade={edgeFade}
           zIndex={10}
         />
       )}
@@ -142,7 +156,7 @@ export default function PhotoFrame({
   );
 }
 
-function Slide({ photo, visible, kenburns, slideSeconds, paddingLeft, zIndex }) {
+function Slide({ photo, visible, kenburns, slideSeconds, paddingLeft, zIndex, edgeFade }) {
   const [shown, setShown] = useState(!!visible);
   // A slide that fails to load (blip mid-fetch) retries once rather than
   // leaving a hole in the rotation.
@@ -176,7 +190,17 @@ function Slide({ photo, visible, kenburns, slideSeconds, paddingLeft, zIndex }) 
         aria-hidden="true"
         className="absolute inset-0 h-full w-full scale-110 object-cover opacity-40 blur-3xl"
       />
-      <div className="absolute inset-0 flex items-center justify-center" style={{ paddingLeft }}>
+      <div
+        className="absolute inset-0 flex items-center justify-center"
+        style={{
+          paddingLeft,
+          // Feather the photo's edges so it melts into the background instead
+          // of ending on a hard line — especially where it meets the agenda
+          // panel on the left.
+          maskImage: edgeFade,
+          WebkitMaskImage: edgeFade,
+        }}
+      >
         <img
           src={src}
           alt={photo.caption || ''}
