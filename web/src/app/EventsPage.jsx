@@ -60,9 +60,12 @@ export default function EventsPage() {
       </div>
 
       {canAdd && !editing && (
-        <button className="btn-primary" onClick={() => setEditing({ ...emptyForm() })}>
-          + New event
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button className="btn-primary" onClick={() => setEditing({ ...emptyForm() })}>
+            + New event
+          </button>
+          <PasteAppointment onAdded={load} />
+        </div>
       )}
 
       {editing && (
@@ -137,6 +140,84 @@ export default function EventsPage() {
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+/**
+ * Paste a doctor's-office confirmation email/text; the server extracts the
+ * appointment and either adds it or queues it for admin review.
+ */
+function PasteAppointment({ onAdded }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const submit = async () => {
+    setBusy(true);
+    setResult(null);
+    try {
+      const data = await api.post('/ingest/paste', { text });
+      const status = data.item.status;
+      setResult({
+        tone: status === 'added' ? 'ok' : status === 'needs_review' ? 'ok' : 'error',
+        text:
+          status === 'added'
+            ? `Added: ${data.item.extracted?.title || 'appointment'}`
+            : status === 'needs_review'
+              ? 'Found it — an admin will confirm before it shows on the frame.'
+              : data.item.error || 'No appointment found in that text.',
+      });
+      if (status === 'added') {
+        setText('');
+        onAdded();
+      }
+    } catch (err) {
+      setResult({ tone: 'error', text: err.message });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <button className="btn-ghost" onClick={() => setOpen(true)}>
+        Paste appointment text
+      </button>
+    );
+  }
+
+  return (
+    <div className="card w-full space-y-3">
+      <p className="text-sm text-slate-400">
+        Paste a confirmation email or text from a doctor's office and we'll pull out the
+        appointment.
+      </p>
+      <textarea
+        className="field min-h-28 font-mono text-sm"
+        placeholder="e.g. Your appointment with Dr. Smith is on Thursday, Aug 14 at 2:30 PM…"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
+      {result && (
+        <p
+          className={[
+            'text-sm',
+            result.tone === 'ok' ? 'text-emerald-400' : 'text-rose-400',
+          ].join(' ')}
+        >
+          {result.text}
+        </p>
+      )}
+      <div className="flex gap-2">
+        <button className="btn-primary" disabled={busy || !text.trim()} onClick={submit}>
+          {busy ? 'Reading…' : 'Extract appointment'}
+        </button>
+        <button className="btn-ghost" onClick={() => setOpen(false)}>
+          Close
+        </button>
+      </div>
     </div>
   );
 }

@@ -98,6 +98,31 @@ CREATE TABLE IF NOT EXISTS settings (
   key    TEXT PRIMARY KEY,
   value  TEXT NOT NULL
 );
+
+-- Incoming appointment texts/emails awaiting extraction or review.
+CREATE TABLE IF NOT EXISTS inbox_items (
+  id           TEXT PRIMARY KEY,
+  source       TEXT NOT NULL,             -- 'email' | 'sms' | 'paste'
+  sender       TEXT,
+  subject      TEXT,
+  body         TEXT NOT NULL,
+  received_at  TEXT NOT NULL,
+  status       TEXT NOT NULL DEFAULT 'pending', -- pending | needs_review | added | dismissed | failed
+  extracted    TEXT,                      -- JSON of the parsed appointment
+  event_id     TEXT REFERENCES events(id) ON DELETE SET NULL,
+  error        TEXT,
+  external_ref TEXT,                      -- e.g. IMAP message-id, for dedupe
+  created_at   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_inbox_status ON inbox_items(status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_inbox_ref ON inbox_items(external_ref) WHERE external_ref IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS photo_likes (
+  photo_id   TEXT NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
+  user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (photo_id, user_id)
+);
 `);
 
 export const DEFAULT_SETTINGS = {
@@ -122,6 +147,15 @@ export const DEFAULT_SETTINGS = {
   // Local folder photo source ('' disables it)
   photo_folder_path: '',
   folder_scan_minutes: '30',
+  // Appointment ingestion
+  ingest_auto_add: 'false', // 'true' adds straight to calendar; 'false' holds for review
+  ingest_default_color: '#f472b6',
+  imap_host: '',
+  imap_port: '993',
+  imap_user: '',
+  imap_password: '',
+  imap_folder: 'INBOX',
+  imap_poll_minutes: '5',
 };
 
 export function getSetting(key) {
@@ -159,6 +193,15 @@ export function rotateDisplayToken() {
   const token = crypto.randomBytes(24).toString('base64url');
   setSetting('display_token', token);
   return token;
+}
+
+/** Secret for the SMS/webhook ingest endpoint. Generated on first read. */
+export function getIngestSecret() {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('ingest_secret');
+  if (row) return row.value;
+  const secret = crypto.randomBytes(24).toString('base64url');
+  setSetting('ingest_secret', secret);
+  return secret;
 }
 
 export const newId = () => crypto.randomUUID();

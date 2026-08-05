@@ -101,6 +101,60 @@ router.get('/:id/file', requireViewer, async (req, res) => {
   }
 });
 
+/**
+ * Instagram-style feed: approved photos, newest first, with like counts and
+ * whether the current user liked each one. Cursor = createdAt of the last item.
+ */
+router.get('/feed', requireAuth, (req, res) => {
+  const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 12));
+  const before = typeof req.query.before === 'string' ? req.query.before : null;
+
+  const rows = db
+    .prepare(
+      `SELECT p.*, u.name AS uploaded_by_name,
+              (SELECT COUNT(*) FROM photo_likes pl WHERE pl.photo_id = p.id) AS like_count,
+              EXISTS(SELECT 1 FROM photo_likes pl WHERE pl.photo_id = p.id AND pl.user_id = ?) AS liked
+       FROM photos p LEFT JOIN users u ON u.id = p.uploaded_by
+       WHERE p.status = 'approved' ${before ? 'AND p.created_at < ?' : ''}
+       ORDER BY p.created_at DESC
+       LIMIT ?`
+    )
+    .all(...(before ? [req.user.id, before, limit] : [req.user.id, limit]));
+
+  res.json({
+    posts: rows.map((row) => ({
+      ...shape(row),
+      likeCount: row.like_count,
+      liked: !!row.liked,
+    })),
+    nextCursor: rows.length === limit ? rows[rows.length - 1].created_at : null,
+  });
+});
+
+router.post('/:id/like', requireAuth, (req, res) => {
+  const photo = db.prepare("SELECT id FROM photos WHERE id = ? AND status = 'approved'").get(req.params.id);
+  if (!photo) return res.status(404).json({ error: 'Photo not found' });
+
+  const existing = db
+    .prepare('SELECT 1 FROM photo_likes WHERE photo_id = ? AND user_id = ?')
+    .get(photo.id, req.user.id);
+
+  if (existing) {
+    db.prepare('DELETE FROM photo_likes WHERE photo_id = ? AND user_id = ?').run(photo.id, req.user.id);
+  } else {
+    db.prepare('INSERT INTO photo_likes (photo_id, user_id, created_at) VALUES (?, ?, ?)').run(
+      photo.id,
+      req.user.id,
+      nowIso()
+    );
+  }
+
+  const likeCount = db
+    .prepare('SELECT COUNT(*) AS n FROM photo_likes WHERE photo_id = ?')
+    .get(photo.id).n;
+  res.json({ liked: !existing, likeCount });
+});
+
 /* ------------------------------- companion app ------------------------------ */
 
 router.get('/', requireAuth, (req, res) => {

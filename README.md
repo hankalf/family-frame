@@ -29,6 +29,13 @@ photos and events — each with their own permissions.
   (keeps showing cached data and says so), photos-only / calendar-only / combined layouts.
 - **Photo folder import** — optionally point it at a folder (USB stick, Syncthing,
   network share) and it imports new images automatically.
+- **Family feed** — an Instagram-style feed in the app: everyone's photos in one
+  scrolling stream with likes (double-tap or ♥).
+- **Appointment ingestion** — forward doctors'-office emails to a dedicated mailbox
+  (IMAP), forward texts via an SMS-forwarder app webhook, or paste confirmation text
+  into the app. The server extracts the appointment (Claude API if `ANTHROPIC_API_KEY`
+  is set on the server, otherwise a built-in date parser) and either adds it to the
+  calendar or holds it in Admin → Appointments for review.
 
 > **Google Photos?** Google removed general read access to Photos libraries for
 > third-party apps in 2025, so album sync can't be built reliably. See

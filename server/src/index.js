@@ -10,8 +10,10 @@ import { router as userRoutes, inviteRouter, meRouter } from './routes/users.js'
 import { router as eventRoutes } from './routes/events.js';
 import { router as photoRoutes } from './routes/photos.js';
 import { router as settingRoutes, feedRouter } from './routes/settings.js';
+import { router as ingestRoutes } from './routes/ingest.js';
 import { startFeedPolling } from './services/ics.js';
 import { startFolderScanning } from './services/photoSources.js';
+import { startImapPolling } from './services/inbox.js';
 
 ensureDirs();
 
@@ -33,6 +35,7 @@ app.use('/api/events', eventRoutes);
 app.use('/api/photos', photoRoutes);
 app.use('/api/settings', settingRoutes);
 app.use('/api/feeds', feedRouter);
+app.use('/api/ingest', ingestRoutes);
 
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Unknown endpoint' }));
 
@@ -62,4 +65,5 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`  Kiosk URL:     http://<this-machine>:${PORT}/display?token=${getDisplayToken()}\n`);
   startFeedPolling();
   startFolderScanning();
+  startImapPolling();
 });

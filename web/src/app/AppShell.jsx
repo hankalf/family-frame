@@ -1,6 +1,7 @@
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/useAuth.jsx';
 import AuthScreen from './AuthScreen.jsx';
+import FeedPage from './FeedPage.jsx';
 import PhotosPage from './PhotosPage.jsx';
 import EventsPage from './EventsPage.jsx';
 import AdminPage from './AdminPage.jsx';
@@ -40,8 +41,9 @@ export default function AppShell() {
 
         <nav className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-3 pb-2">
           <Tab to="/app" end>
-            Photos
+            Feed
           </Tab>
+          <Tab to="/app/photos">Photos</Tab>
           <Tab to="/app/events">Calendar</Tab>
           {user.isAdmin && <Tab to="/app/admin">Admin</Tab>}
         </nav>
@@ -49,7 +51,8 @@ export default function AppShell() {
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 pb-24">
         <Routes>
-          <Route index element={<PhotosPage />} />
+          <Route index element={<FeedPage />} />
+          <Route path="photos" element={<PhotosPage />} />
           <Route path="events" element={<EventsPage />} />
           <Route path="account" element={<AccountPage />} />
           <Route
