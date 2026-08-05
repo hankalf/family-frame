@@ -112,18 +112,22 @@ export function approveInboxItem(id, overrides = {}) {
 let timer = null;
 let polling = false;
 
+// Gmail-only: connection details are fixed, users supply address + app password.
+const GMAIL_HOST = 'imap.gmail.com';
+const GMAIL_PORT = 993;
+const GMAIL_FOLDER = 'INBOX';
+
 export async function pollImapOnce() {
-  const host = (getSetting('imap_host') || '').trim();
-  const user = (getSetting('imap_user') || '').trim();
-  const password = getSetting('imap_password') || '';
-  if (!host || !user || !password) return { skipped: true };
+  const user = (getSetting('gmail_address') || '').trim();
+  const password = (getSetting('gmail_app_password') || '').replace(/\s+/g, '');
+  if (!user || !password) return { skipped: true };
 
   if (polling) return { skipped: true, reason: 'already running' };
   polling = true;
 
   const clientImap = new ImapFlow({
-    host,
-    port: Number(getSetting('imap_port')) || 993,
+    host: GMAIL_HOST,
+    port: GMAIL_PORT,
     secure: true,
     auth: { user, pass: password },
     logger: false,
@@ -132,7 +136,7 @@ export async function pollImapOnce() {
   let processed = 0;
   try {
     await clientImap.connect();
-    const lock = await clientImap.getMailboxLock(getSetting('imap_folder') || 'INBOX');
+    const lock = await clientImap.getMailboxLock(GMAIL_FOLDER);
     try {
       // Unseen messages only; mark seen after ingesting so nothing is handled twice
       // even if the message-id dedupe misses.
@@ -144,7 +148,7 @@ export async function pollImapOnce() {
             sender: mail.from?.text || null,
             subject: mail.subject || null,
             body: mail.text || mail.html?.replace(/<[^>]+>/g, ' ') || '',
-            externalRef: mail.messageId || `imap-${host}-${message.uid}`,
+            externalRef: mail.messageId || `gmail-${user}-${message.uid}`,
           });
           await clientImap.messageFlagsAdd({ uid: String(message.uid) }, ['\\Seen'], { uid: true });
           processed += 1;
@@ -173,7 +177,7 @@ export async function pollImapOnce() {
 export function startImapPolling() {
   const run = async () => {
     await pollImapOnce().catch((err) => console.error('[imap]', err));
-    const minutes = Math.max(1, Number(getSetting('imap_poll_minutes')) || 5);
+    const minutes = Math.max(1, Number(getSetting('gmail_poll_minutes')) || 5);
     timer = setTimeout(run, minutes * 60 * 1000);
     timer.unref?.();
   };

@@ -45,14 +45,14 @@ export default function AppointmentsSection() {
   }
 
   const webhookUrl = `${window.location.origin}/api/ingest/hook/${data.ingestSecret}`;
-  const imapKeys = ['imap_host', 'imap_port', 'imap_user', 'imap_password', 'imap_folder', 'imap_poll_minutes'];
-  const dirty = [...imapKeys, 'ingest_auto_add'].some((k) => draft[k] !== settings[k]);
+  const gmailKeys = ['gmail_address', 'gmail_app_password', 'gmail_poll_minutes'];
+  const dirty = [...gmailKeys, 'ingest_auto_add'].some((k) => draft[k] !== settings[k]);
 
   const save = async () => {
     setBusy(true);
     try {
       const updates = {};
-      for (const key of [...imapKeys, 'ingest_auto_add']) updates[key] = draft[key];
+      for (const key of [...gmailKeys, 'ingest_auto_add']) updates[key] = draft[key];
       await api.put('/settings', { settings: updates });
       await load();
     } catch (err) {
@@ -93,20 +93,55 @@ export default function AppointmentsSection() {
       </section>
 
       <section className="card space-y-4">
-        <h2 className="font-medium">Emails</h2>
-        <p className="-mt-2 text-sm text-slate-400">
-          Create a dedicated mailbox (e.g. a free Gmail) and auto-forward appointment emails from
-          your real inbox to it. The frame checks it every few minutes. For Gmail use an{' '}
-          <em>app password</em>, host <code>imap.gmail.com</code>.
-        </p>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="IMAP host" value={draft.imap_host} onChange={(v) => setDraft((d) => ({ ...d, imap_host: v }))} placeholder="imap.gmail.com" mono />
-          <Field label="Port" value={draft.imap_port} onChange={(v) => setDraft((d) => ({ ...d, imap_port: v }))} mono />
-          <Field label="Username" value={draft.imap_user} onChange={(v) => setDraft((d) => ({ ...d, imap_user: v }))} placeholder="frame.family@gmail.com" mono />
-          <Field label="Password / app password" type="password" value={draft.imap_password} onChange={(v) => setDraft((d) => ({ ...d, imap_password: v }))} mono />
-          <Field label="Folder" value={draft.imap_folder} onChange={(v) => setDraft((d) => ({ ...d, imap_folder: v }))} mono />
-          <Field label="Check every (minutes)" value={draft.imap_poll_minutes} onChange={(v) => setDraft((d) => ({ ...d, imap_poll_minutes: v }))} />
+        <h2 className="font-medium">Gmail</h2>
+        <div className="-mt-2 space-y-1.5 text-sm text-slate-400">
+          <p>
+            Create a free Gmail just for the frame (e.g.{' '}
+            <code className="text-slate-300">smithframe@gmail.com</code>) and auto-forward
+            appointment emails from your real inbox to it. The frame checks it every few minutes.
+          </p>
+          <ol className="list-decimal space-y-1 pl-5 text-xs text-slate-500">
+            <li>On the new Gmail account, turn on 2-step verification.</li>
+            <li>
+              Go to <span className="text-slate-400">myaccount.google.com → Security → App
+              passwords</span> and create one — that 16-character code goes below (not the normal
+              password).
+            </li>
+            <li>
+              In your own Gmail: Settings → Filters → create a filter for your clinics' addresses
+              → "Forward to" the frame's address.
+            </li>
+          </ol>
         </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            label="Gmail address"
+            value={draft.gmail_address}
+            onChange={(v) => setDraft((d) => ({ ...d, gmail_address: v }))}
+            placeholder="smithframe@gmail.com"
+            mono
+          />
+          <Field
+            label="App password"
+            type="password"
+            value={draft.gmail_app_password}
+            onChange={(v) => setDraft((d) => ({ ...d, gmail_app_password: v }))}
+            placeholder="16-character app password"
+            mono
+          />
+          <Field
+            label="Check every (minutes)"
+            value={draft.gmail_poll_minutes}
+            onChange={(v) => setDraft((d) => ({ ...d, gmail_poll_minutes: v }))}
+          />
+        </div>
+        {draft.gmail_address &&
+          !/@(gmail\.com|googlemail\.com)$/i.test(draft.gmail_address.trim()) && (
+            <p className="text-xs text-amber-300/80">
+              That doesn't look like a Gmail address — this connects to Gmail's servers only.
+              (Google Workspace addresses on your own domain also work.)
+            </p>
+          )}
         <div className="flex items-center gap-3">
           <button
             className="btn-ghost text-sm"

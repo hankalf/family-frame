@@ -12,6 +12,21 @@ import Clock from './Clock.jsx';
 const PLAYLIST_REFRESH_MS = 15 * 1000;
 const AGENDA_REFRESH_MS = 15 * 1000;
 const SETTINGS_REFRESH_MS = 60 * 1000;
+const HEARTBEAT_MS = 60 * 1000;
+
+/** Stable per-screen id so the admin page can tell frames apart. */
+function getDeviceId() {
+  try {
+    let id = localStorage.getItem('frame.deviceId');
+    if (!id) {
+      id = crypto.randomUUID().replace(/-/g, '').slice(0, 20);
+      localStorage.setItem('frame.deviceId', id);
+    }
+    return id;
+  } catch {
+    return null; // private browsing — heartbeats are skipped
+  }
+}
 
 function usePolled(fetcher, intervalMs, deps = []) {
   const [data, setData] = useState(null);
@@ -146,6 +161,30 @@ export default function Display() {
       /* storage unavailable */
     }
   };
+
+  // Report in every minute so the admin page can show this frame as online.
+  const layoutForHeartbeat = localLayout || serverLayout;
+  useEffect(() => {
+    if (!token) return undefined;
+    const deviceId = getDeviceId();
+    if (!deviceId) return undefined;
+
+    const beat = () =>
+      api
+        .post('/displays/heartbeat', {
+          deviceId,
+          width: window.screen?.width ?? window.innerWidth,
+          height: window.screen?.height ?? window.innerHeight,
+          layout: layoutForHeartbeat,
+        })
+        .catch(() => {
+          /* offline — the admin page will show it as such */
+        });
+
+    beat();
+    const id = setInterval(beat, HEARTBEAT_MS);
+    return () => clearInterval(id);
+  }, [token, layoutForHeartbeat]);
 
   const unauthorized =
     settingsQuery.error?.status === 401 || playlistQuery.error?.status === 401;

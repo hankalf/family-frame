@@ -86,6 +86,8 @@ export default function DisplaySection() {
         </button>
       </section>
 
+      <DisplaysPanel />
+
       <section className="card space-y-4">
         <h2 className="font-medium">Photo frame</h2>
         <Row label="Seconds per photo">
@@ -258,6 +260,131 @@ export default function DisplaySection() {
         </button>
       </div>
     </div>
+  );
+}
+
+const LAYOUT_LABELS = {
+  sidebar: 'Photos + agenda',
+  'photo-only': 'Photos only',
+  'calendar-only': 'Calendar only',
+};
+
+function timeAgo(iso) {
+  const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (seconds < 90) return 'just now';
+  if (seconds < 3600) return `${Math.round(seconds / 60)} min ago`;
+  if (seconds < 86400) return `${Math.round(seconds / 3600)} h ago`;
+  return `${Math.round(seconds / 86400)} d ago`;
+}
+
+/** Live list of paired screens, fed by each kiosk's 60s heartbeat. */
+function DisplaysPanel() {
+  const [displays, setDisplays] = useState(null);
+  const [renaming, setRenaming] = useState(null); // {id, name}
+
+  const load = useCallback(async () => {
+    try {
+      const data = await api.get('/displays');
+      setDisplays(data.displays);
+    } catch {
+      /* keep the last list */
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+    const id = setInterval(load, 30_000);
+    return () => clearInterval(id);
+  }, [load]);
+
+  return (
+    <section className="card space-y-3">
+      <div>
+        <h2 className="font-medium">Paired displays</h2>
+        <p className="mt-1 text-sm text-slate-400">
+          Every screen that has opened the kiosk URL checks in once a minute.
+        </p>
+      </div>
+
+      {!displays ? (
+        <div className="h-16 animate-pulse rounded-xl bg-slate-800/40" />
+      ) : displays.length === 0 ? (
+        <p className="text-sm text-slate-500">
+          No displays have connected yet. Open the kiosk URL on the frame and it will appear here.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {displays.map((display) => (
+            <li
+              key={display.id}
+              className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/40 px-3.5 py-3"
+            >
+              <span
+                title={display.online ? 'Online' : 'Offline'}
+                className={[
+                  'h-2.5 w-2.5 shrink-0 rounded-full',
+                  display.online ? 'bg-emerald-400 shadow-[0_0_6px] shadow-emerald-400/60' : 'bg-slate-600',
+                ].join(' ')}
+              />
+              <div className="min-w-0 flex-1">
+                {renaming?.id === display.id ? (
+                  <form
+                    className="flex gap-2"
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      await api.patch(`/displays/${display.id}`, { name: renaming.name });
+                      setRenaming(null);
+                      load();
+                    }}
+                  >
+                    <input
+                      autoFocus
+                      className="field py-1 text-sm"
+                      value={renaming.name}
+                      onChange={(e) => setRenaming({ ...renaming, name: e.target.value })}
+                      placeholder="e.g. Kitchen frame"
+                    />
+                    <button className="btn-primary px-3 py-1 text-sm">Save</button>
+                  </form>
+                ) : (
+                  <p className="truncate text-sm font-medium">
+                    {display.name || `Display ${display.id.slice(0, 6)}`}
+                    {!display.online && (
+                      <span className="ml-2 text-xs font-normal text-slate-500">offline</span>
+                    )}
+                  </p>
+                )}
+                <p className="truncate text-xs text-slate-500">
+                  {display.online ? 'Online' : `Last seen ${timeAgo(display.lastSeen)}`}
+                  {display.width ? ` · ${display.width}×${display.height}` : ''}
+                  {display.layout ? ` · ${LAYOUT_LABELS[display.layout] || display.layout}` : ''}
+                </p>
+              </div>
+              <button
+                className="shrink-0 rounded-lg px-2 py-1 text-xs text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                onClick={() =>
+                  setRenaming(
+                    renaming?.id === display.id ? null : { id: display.id, name: display.name || '' }
+                  )
+                }
+              >
+                Rename
+              </button>
+              <button
+                className="shrink-0 rounded-lg px-2 py-1 text-xs text-rose-400 hover:bg-rose-950/50"
+                onClick={async () => {
+                  if (!confirm('Forget this display? It will re-appear if it is still running.')) return;
+                  await api.del(`/displays/${display.id}`);
+                  load();
+                }}
+              >
+                Forget
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 

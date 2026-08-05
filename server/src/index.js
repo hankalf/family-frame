@@ -11,6 +11,7 @@ import { router as eventRoutes } from './routes/events.js';
 import { router as photoRoutes } from './routes/photos.js';
 import { router as settingRoutes, feedRouter } from './routes/settings.js';
 import { router as ingestRoutes } from './routes/ingest.js';
+import { router as displayRoutes } from './routes/displays.js';
 import { startFeedPolling } from './services/ics.js';
 import { startFolderScanning } from './services/photoSources.js';
 import { startImapPolling } from './services/inbox.js';
@@ -36,6 +37,7 @@ app.use('/api/photos', photoRoutes);
 app.use('/api/settings', settingRoutes);
 app.use('/api/feeds', feedRouter);
 app.use('/api/ingest', ingestRoutes);
+app.use('/api/displays', displayRoutes);
 
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Unknown endpoint' }));
 

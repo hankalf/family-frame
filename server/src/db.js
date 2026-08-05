@@ -117,6 +117,20 @@ CREATE TABLE IF NOT EXISTS inbox_items (
 CREATE INDEX IF NOT EXISTS idx_inbox_status ON inbox_items(status);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_inbox_ref ON inbox_items(external_ref) WHERE external_ref IS NOT NULL;
 
+-- One row per physical screen; the kiosk generates its own stable id and
+-- reports in periodically so admins can see which frames are alive.
+CREATE TABLE IF NOT EXISTS displays (
+  id          TEXT PRIMARY KEY,
+  name        TEXT,
+  user_agent  TEXT,
+  width       INTEGER,
+  height      INTEGER,
+  layout      TEXT,
+  app_version TEXT,
+  first_seen  TEXT NOT NULL,
+  last_seen   TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS photo_likes (
   photo_id   TEXT NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
   user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -150,12 +164,10 @@ export const DEFAULT_SETTINGS = {
   // Appointment ingestion
   ingest_auto_add: 'false', // 'true' adds straight to calendar; 'false' holds for review
   ingest_default_color: '#f472b6',
-  imap_host: '',
-  imap_port: '993',
-  imap_user: '',
-  imap_password: '',
-  imap_folder: 'INBOX',
-  imap_poll_minutes: '5',
+  // Gmail inbox for appointment emails (app password, not the account password)
+  gmail_address: '',
+  gmail_app_password: '',
+  gmail_poll_minutes: '5',
 };
 
 export function getSetting(key) {
