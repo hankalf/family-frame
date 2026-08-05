@@ -49,9 +49,9 @@ photos and events — each with their own permissions.
   network share) and it imports new images automatically.
 - **Family feed** — an Instagram-style feed in the app: everyone's photos in one
   scrolling stream with likes (double-tap or ♥).
-- **Appointment ingestion** — forward doctors'-office emails to a dedicated mailbox
-  (IMAP), forward texts via an SMS-forwarder app webhook, or paste confirmation text
-  into the app. The server extracts the appointment (Claude API if `ANTHROPIC_API_KEY`
+- **Appointment ingestion** — forward doctors'-office emails to a dedicated Gmail, send
+  texts in from an iPhone Shortcut (or an Android forwarder app), or paste confirmation
+  text into the app. The server extracts the appointment (Claude API if `ANTHROPIC_API_KEY`
   is set on the server, otherwise a built-in date parser) and either adds it to the
   calendar or holds it in Admin → Appointments for review.
 
@@ -229,6 +229,27 @@ tailnet and `https://frame.your-tailnet.ts.net/app` works from anywhere.
 This also unlocks **offline photo caching** on the frame: service workers require a secure
 context, so on plain HTTP the browser refuses to register one. Over HTTPS the display can cache
 its whole playlist and ride out a network outage completely.
+
+## Getting appointment texts in from an iPhone
+
+iOS gives no app access to incoming SMS, so there's no forwarder app the way there is on
+Android. The route is the **Shortcuts** app, and it works well. Admin → Appointments has the
+step-by-step; the short version:
+
+Build a shortcut with one **Get Contents of URL** action pointed at the webhook address, method
+`POST`, request body `JSON`, one text field named `text` set to **Shortcut Input**. Turn on
+**Show in Share Sheet**.
+
+- **Manual (recommended):** hold the message → Share → *Send to Frame*. Three taps, reliable.
+- **Hands-free:** Shortcuts → Automation → New → **Message**, triggered on messages containing
+  "appointment" or from a specific number, running the same steps. Recent iOS versions can run
+  message automations without confirming each time; if yours still prompts, use the Share Sheet.
+
+The webhook accepts JSON, form fields, or a bare plain-text body, and returns a readable
+sentence that Shortcuts displays back to you ("Added: Cleaning — Dr. Reed").
+
+> Where a clinic offers both email and SMS reminders, prefer **email** — the Gmail path is
+> fully automatic and needs nothing on the phone.
 
 ## Better appointment extraction
 

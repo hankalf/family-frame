@@ -77,18 +77,77 @@ export default function AppointmentsSection() {
       <section className="card space-y-3">
         <h2 className="font-medium">Texts from your phone</h2>
         <p className="text-sm text-slate-400">
-          Install an SMS-forwarder app (e.g. "SMS to URL Forwarder" on Android), filter it to your
-          clinics' numbers, and point it at this URL with a JSON or form body containing{' '}
-          <code>text</code> (and optionally <code>from</code>):
+          Appointment texts get sent to this address, which then reads them and pulls out the
+          appointment. Setup differs by phone.
         </p>
+
         <div className="flex gap-2">
           <input readOnly className="field flex-1 font-mono text-xs" value={webhookUrl} />
-          <button className="btn-ghost shrink-0" onClick={() => navigator.clipboard?.writeText(webhookUrl)}>
+          <button
+            className="btn-ghost shrink-0"
+            onClick={() => navigator.clipboard?.writeText(webhookUrl)}
+          >
             Copy
           </button>
         </div>
+
+        <details className="rounded-xl border border-slate-800 bg-slate-900/40 p-3.5" open>
+          <summary className="cursor-pointer text-sm font-medium text-slate-200">
+            iPhone — use the Shortcuts app
+          </summary>
+          <div className="mt-3 space-y-3 text-sm text-slate-400">
+            <p>
+              iOS doesn't let any app read your texts, so there's no forwarder app — Shortcuts is
+              the way in. Build the shortcut once:
+            </p>
+            <ol className="list-decimal space-y-1.5 pl-5 text-xs text-slate-500">
+              <li>
+                Open <span className="text-slate-300">Shortcuts</span> → <b>+</b> → add the action{' '}
+                <span className="text-slate-300">Get Contents of URL</span>.
+              </li>
+              <li>Paste the address above into the URL field.</li>
+              <li>
+                Expand <span className="text-slate-300">Show More</span>: set Method to{' '}
+                <span className="text-slate-300">POST</span>, Request Body to{' '}
+                <span className="text-slate-300">JSON</span>, then add one text field named{' '}
+                <code className="text-slate-300">text</code>.
+              </li>
+              <li>
+                Set that field's value to <span className="text-slate-300">Shortcut Input</span>.
+              </li>
+              <li>
+                Name it "Send to Frame", and in its settings turn on{' '}
+                <span className="text-slate-300">Show in Share Sheet</span>.
+              </li>
+            </ol>
+            <p className="text-xs">
+              <b className="text-slate-300">To use it:</b> hold a message → Share → Send to Frame.
+              Three taps, and it works every time.
+            </p>
+            <p className="text-xs">
+              <b className="text-slate-300">Fully hands-free (optional):</b> in Shortcuts →
+              Automation → New → <span className="text-slate-300">Message</span>, set it to run
+              when a message contains "appointment" (or from your clinic's number) and have it run
+              the same steps. Recent iOS versions can run this without asking first — if yours
+              still asks for confirmation each time, stick with the Share Sheet.
+            </p>
+          </div>
+        </details>
+
+        <details className="rounded-xl border border-slate-800 bg-slate-900/40 p-3.5">
+          <summary className="cursor-pointer text-sm font-medium text-slate-200">
+            Android — use a forwarder app
+          </summary>
+          <p className="mt-3 text-sm text-slate-400">
+            Install an SMS-forwarder app (e.g. "SMS to URL Forwarder"), filter it to your clinics'
+            numbers, and point it at the address above with a JSON or form body containing{' '}
+            <code>text</code> (and optionally <code>from</code>).
+          </p>
+        </details>
+
         <p className="text-xs text-slate-600">
-          Keep this URL private — anyone with it can add items to the review queue.
+          Keep this address private — anyone with it can add items to the review queue. Emails are
+          simpler than texts where a clinic offers both; see below.
         </p>
       </section>
 

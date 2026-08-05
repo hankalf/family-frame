@@ -23,38 +23,68 @@ function shape(item) {
 }
 
 /**
- * Webhook for SMS-forwarder apps (e.g. Android "SMS to URL Forwarder").
- * Secured by a secret in the path so simple forwarders that can't set headers
- * still work: POST /api/ingest/hook/<secret>
- * Accepts JSON {from, text|body|message} or form-encoded equivalents.
+ * Webhook for forwarding appointment texts in.
+ *
+ * The secret lives in the path rather than a header because the clients that
+ * use this — an iPhone Shortcut, an Android forwarder app — are easiest to set
+ * up with nothing but a URL.
+ *
+ * Deliberately forgiving about the body: Shortcuts can send JSON, form fields
+ * or a bare string depending on how the user wires it up, and a family member
+ * following setup instructions on a phone shouldn't have to debug that.
  */
-router.post('/hook/:secret', express.urlencoded({ extended: true }), async (req, res) => {
-  const expected = getIngestSecret();
-  const supplied = req.params.secret || '';
-  const a = Buffer.from(supplied);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-    return res.status(401).json({ error: 'Bad secret' });
-  }
+router.post(
+  '/hook/:secret',
+  express.urlencoded({ extended: true }),
+  express.text({ type: ['text/*'] }),
+  async (req, res) => {
+    const expected = getIngestSecret();
+    const supplied = req.params.secret || '';
+    const a = Buffer.from(supplied);
+    const b = Buffer.from(expected);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      return res.status(401).json({ error: 'Bad secret' });
+    }
 
-  const payload = req.body || {};
-  const text = payload.text ?? payload.body ?? payload.message ?? payload.content;
-  if (!text || typeof text !== 'string') {
-    return res.status(400).json({ error: 'Missing message text (expected "text", "body" or "message")' });
-  }
+    // A bare string body is the whole message; an object carries it in one of
+    // several plausible field names.
+    const payload = req.body ?? {};
+    const text =
+      typeof payload === 'string'
+        ? payload
+        : (payload.text ?? payload.body ?? payload.message ?? payload.content);
 
-  try {
-    const { item, duplicate } = await ingestMessage({
-      source: 'sms',
-      sender: payload.from ?? payload.sender ?? null,
-      subject: null,
-      body: text,
-    });
-    res.status(duplicate ? 200 : 201).json({ status: item.status, duplicate });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
+    if (!text || typeof text !== 'string' || !text.trim()) {
+      return res.status(400).json({
+        error: 'No message text found. Send it as JSON {"text": "..."}, a form field named text, or a plain-text body.',
+      });
+    }
+
+    try {
+      const { item, duplicate } = await ingestMessage({
+        source: 'sms',
+        sender:
+          typeof payload === 'string' ? null : (payload.from ?? payload.sender ?? null),
+        subject: null,
+        body: text,
+      });
+      // Shortcuts shows this back to the user, so make it readable.
+      res.status(duplicate ? 200 : 201).json({
+        status: item.status,
+        duplicate,
+        message: duplicate
+          ? 'Already received that one.'
+          : item.status === 'added'
+            ? `Added: ${JSON.parse(item.extracted || '{}').title || 'appointment'}`
+            : item.status === 'needs_review'
+              ? 'Sent to the frame for review.'
+              : 'No appointment found in that message.',
+      });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
   }
-});
+);
 
 /** Paste-a-confirmation: any member who can add events. */
 router.post('/paste', requirePermission('can_add_events'), async (req, res) => {
