@@ -189,6 +189,10 @@ export const DEFAULT_SETTINGS = {
   // Let people add events by tapping a day on the frame itself. The frame is
   // authenticated by the display token, so this is off-limits unless enabled.
   frame_add_events: 'true',
+  // Decorative bezel drawn around the whole display (px; 0 = none)
+  frame_border_width: '0',
+  frame_border_color: '#1e293b',
+  frame_border_radius: '0',
 };
 
 export function getSetting(key) {

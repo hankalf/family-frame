@@ -31,6 +31,9 @@ photos and events — each with their own permissions.
   between Calendar / Both / Photos / Weather with a tap. It idles semi-transparent, wakes on
   touch, and the frame remembers the chosen view. The admin's layout setting is the default;
   changing it remotely takes back over until the screen is next touched.
+- **Screen border** — an optional bezel drawn around the display (width, colour, corner
+  radius) with a live preview in Admin → Display. Useful when the physical frame doesn't
+  quite cover the panel edges, or just for a mat-board look.
 - **Month calendar on the frame** — the Calendar tab is a full month grid with each day's
   events, month back/forward and a "Today" jump. Tap any day to see what's on and add an
   event right there — including a built-in on-screen keyboard, since a wall frame has no

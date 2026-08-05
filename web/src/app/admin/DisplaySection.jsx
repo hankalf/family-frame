@@ -311,6 +311,85 @@ export default function DisplaySection() {
       </section>
 
       <section className="card space-y-4">
+        <h2 className="font-medium">Screen border</h2>
+        <p className="-mt-2 text-sm text-slate-400">
+          Draws a bezel around everything on the display — handy when the physical frame doesn't
+          quite cover the panel edges, or just for the look of a mat board.
+        </p>
+
+        {/* Live preview, scaled down ~3x */}
+        <div className="flex justify-center">
+          <div
+            className="aspect-video w-72 overflow-hidden rounded-md shadow-lg"
+            style={{
+              padding: Math.round((Number(draft.frame_border_width) || 0) / 3),
+              backgroundColor: draft.frame_border_color || '#1e293b',
+            }}
+          >
+            <div
+              className="relative h-full w-full overflow-hidden bg-gradient-to-br from-sky-900 via-slate-900 to-emerald-900"
+              style={{ borderRadius: Math.round((Number(draft.frame_border_radius) || 0) / 3) }}
+            >
+              <div className="absolute left-2 top-1.5 text-[9px] font-semibold text-white/90">
+                12:38
+              </div>
+              <div className="absolute bottom-1.5 left-1/2 h-1.5 w-14 -translate-x-1/2 rounded-full bg-white/20" />
+            </div>
+          </div>
+        </div>
+
+        <Row label={`Border width: ${draft.frame_border_width || 0}px`}>
+          <input
+            type="range"
+            min="0"
+            max="120"
+            step="2"
+            className="w-full max-w-xs accent-sky-500"
+            value={draft.frame_border_width || 0}
+            onChange={(e) => set('frame_border_width')(e.target.value)}
+          />
+        </Row>
+        <Row label="Colour">
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              className="h-11 w-14 cursor-pointer rounded-xl border border-slate-700 bg-slate-900"
+              value={draft.frame_border_color || '#1e293b'}
+              onChange={(e) => set('frame_border_color')(e.target.value)}
+            />
+            <div className="flex gap-1.5">
+              {['#000000', '#1e293b', '#7c5c3e', '#d6c7ae', '#f8fafc'].map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  aria-label={`Border colour ${color}`}
+                  onClick={() => set('frame_border_color')(color)}
+                  className={[
+                    'h-7 w-7 rounded-full border transition',
+                    draft.frame_border_color === color
+                      ? 'border-sky-400 ring-2 ring-sky-500/40'
+                      : 'border-slate-600',
+                  ].join(' ')}
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </div>
+          </div>
+        </Row>
+        <Row label={`Corner radius: ${draft.frame_border_radius || 0}px`}>
+          <input
+            type="range"
+            min="0"
+            max="80"
+            step="2"
+            className="w-full max-w-xs accent-sky-500"
+            value={draft.frame_border_radius || 0}
+            onChange={(e) => set('frame_border_radius')(e.target.value)}
+          />
+        </Row>
+      </section>
+
+      <section className="card space-y-4">
         <h2 className="font-medium">Photo folder (optional)</h2>
         <p className="-mt-2 text-sm text-slate-400">
           A folder on the server that gets imported automatically — useful with Syncthing, a network

@@ -39,6 +39,9 @@ const DISPLAY_KEYS = [
   'weather_radar_enabled',
   'weather_return_minutes',
   'frame_add_events',
+  'frame_border_width',
+  'frame_border_color',
+  'frame_border_radius',
 ];
 
 router.get('/display', requireViewer, (_req, res) => {

@@ -253,8 +253,24 @@ export default function Display() {
     settings.weather_enabled === 'true' && !!settings.weather_latitude;
   const menuItems = LAYOUTS.filter((item) => item.id !== 'weather' || weatherReady);
 
+  // Decorative bezel: the outer div is the "frame", the inner div is the screen.
+  const borderWidth = Math.min(120, Math.max(0, Number(settings.frame_border_width) || 0));
+  const borderRadius = Math.min(80, Math.max(0, Number(settings.frame_border_radius) || 0));
+  const borderColor = settings.frame_border_color || '#1e293b';
+
   return (
-    <div className="kiosk relative h-screen w-screen overflow-hidden bg-slate-950">
+    <div
+      className="kiosk relative h-screen w-screen overflow-hidden"
+      style={
+        borderWidth > 0
+          ? { padding: borderWidth, backgroundColor: borderColor }
+          : { backgroundColor: '#020617' }
+      }
+    >
+      <div
+        className="relative h-full w-full overflow-hidden bg-slate-950"
+        style={borderRadius > 0 ? { borderRadius } : undefined}
+      >
       {showPhotos && (
         <PhotoFrame
           photos={playlistQuery.data || []}
@@ -323,16 +339,18 @@ export default function Display() {
 
       <LayoutMenu layout={layout} items={menuItems} onPick={pickLayout} />
 
-      {/* Night dimming — a pure overlay so nothing has to re-render. */}
+        <OfflineBadge
+          offline={!!(agendaQuery.error || playlistQuery.error || settingsQuery.error)}
+        />
+      </div>
+
+      {/* Night dimming — outside the screen div so it covers the bezel too;
+          a lit border around a dimmed screen looks wrong in a dark room. */}
       <div
         className="pointer-events-none absolute inset-0 z-40 bg-black transition-opacity duration-[3000ms]"
         style={{
           opacity: isNight ? 1 - (Number(settings.night_brightness) || 0.12) : 0,
         }}
-      />
-
-      <OfflineBadge
-        offline={!!(agendaQuery.error || playlistQuery.error || settingsQuery.error)}
       />
     </div>
   );
