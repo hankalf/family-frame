@@ -212,23 +212,63 @@ originals, so ten generations of a 20 GB library cost ~20 GB, not 200 GB.
 
 ## Remote access and HTTPS
 
-Out of the box the frame is LAN-only over plain HTTP, which means family members can only add
-photos while they're on your Wi-Fi. **[Tailscale](https://tailscale.com)** is the least painful
-fix — no port forwarding, no certificate wrangling, no exposing anything to the open internet:
+Out of the box the frame is LAN-only over plain HTTP, so family can only add photos while
+they're on your Wi-Fi. Two ways out, both scripted, neither requiring a forwarded port:
+
+### Tailscale — private, recommended
+
+Everyone who needs access installs Tailscale and signs in. Nothing is ever public.
 
 ```bash
-curl -fsSL https://tailscale.com/install.sh | sh
-tailscale up
-tailscale cert "$(tailscale status --json | grep -o '"DNSName":"[^"]*' | head -1 | cut -d'"' -f4)"
+sudo bash deploy/tailscale-setup.sh
 ```
 
-Then serve the app behind that certificate (Caddy is two lines) and set `COOKIE_SECURE=true` in
-the systemd unit so session cookies are marked secure. Add each family member's phone to your
-tailnet and `https://frame.your-tailnet.ts.net/app` works from anywhere.
+Installs Tailscale (handling the userspace-networking case for unprivileged LXCs), joins your
+tailnet, and serves the app over HTTPS at `https://<hostname>.<tailnet>.ts.net/app`. Add family
+devices at [login.tailscale.com/admin/machines](https://login.tailscale.com/admin/machines).
 
-This also unlocks **offline photo caching** on the frame: service workers require a secure
-context, so on plain HTTP the browser refuses to register one. Over HTTPS the display can cache
-its whole playlist and ride out a network outage completely.
+### Cloudflare Tunnel — your own domain
+
+For a real URL like `https://frame.example.com`, on a domain whose nameservers point at
+Cloudflare:
+
+```bash
+sudo DOMAIN=frame.example.com bash deploy/cloudflare-tunnel-setup.sh
+```
+
+The tunnel dials outward, so still nothing inbound is exposed.
+
+> ⚠️ Unlike Tailscale, this URL is **public** — anyone with it reaches your login page. Consider
+> putting [Cloudflare Access](https://one.dash.cloudflare.com) in front (free up to 50 users) so
+> only verified family emails get that far.
+
+### Cookies work over both at once
+
+You don't need to set `COOKIE_SECURE`. The session cookie is marked secure **per request**,
+derived from `X-Forwarded-Proto` — so the tunnel gets secure cookies while the LAN address keeps
+working over plain HTTP. A fixed `COOKIE_SECURE=true` would silently break every LAN login; set
+it only if you want to force one behaviour.
+
+HTTPS also unlocks **offline photo caching**: service workers require a secure context, so on
+plain HTTP the browser refuses to register one.
+
+## Automatic updates
+
+```bash
+sudo bash deploy/install-auto-update.sh          # checks every 30 minutes
+sudo FRAME_UPDATE_INTERVAL=6h bash deploy/install-auto-update.sh
+```
+
+Pull-based on purpose: no inbound access, no deploy key or SSH credential leaving the box. It
+only rebuilds when the commit actually changed, discards local lockfile churn so a pull is never
+blocked, checks `/api/health` afterwards, and **rolls back to the previous commit** if the app
+doesn't come back up.
+
+```bash
+systemctl start frame-update.service     # update right now
+journalctl -u frame-update.service -n 50 # what happened
+systemctl disable --now frame-update.timer
+```
 
 ## Getting appointment texts in from an iPhone
 

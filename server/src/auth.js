@@ -22,13 +22,28 @@ const SECRET = loadSecret();
 export const hashPassword = (plain) => bcrypt.hash(plain, 11);
 export const verifyPassword = (plain, hash) => bcrypt.compare(plain, hash);
 
-export function issueSession(res, user) {
+/**
+ * Marks the cookie secure per-request rather than from a fixed env var.
+ *
+ * Once a tunnel or Tailscale is in front, the same server is reached two ways:
+ * https from outside and plain http from the LAN. A hard-coded
+ * COOKIE_SECURE=true silently breaks every LAN login, because the browser
+ * refuses to store a secure cookie over http. Express derives `req.secure`
+ * from X-Forwarded-Proto (we set `trust proxy`), so each visitor gets the right
+ * one. COOKIE_SECURE=true still forces it on for an HTTPS-only deployment.
+ */
+function cookieIsSecure(req) {
+  if (process.env.COOKIE_SECURE === 'true') return true;
+  if (process.env.COOKIE_SECURE === 'false') return false;
+  return !!req.secure;
+}
+
+export function issueSession(res, user, req = res.req) {
   const token = jwt.sign({ sub: user.id }, SECRET, { expiresIn: `${MAX_AGE_DAYS}d` });
   res.cookie(COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',
-    // The frame lives on a LAN over plain http; flip this on behind a TLS proxy.
-    secure: process.env.COOKIE_SECURE === 'true',
+    secure: cookieIsSecure(req),
     maxAge: MAX_AGE_DAYS * 24 * 60 * 60 * 1000,
     path: '/',
   });
