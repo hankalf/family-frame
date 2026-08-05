@@ -27,6 +27,10 @@ photos and events — each with their own permissions.
   for new photos before they appear on the wall.
 - **Display niceties** — night dimming on a schedule, screen wake-lock, offline-tolerant
   (keeps showing cached data and says so), photos-only / calendar-only / combined layouts.
+- **Touchscreen support** — a minimal menu at the bottom-center of the display switches
+  between Calendar / Both / Photos with a tap. It idles semi-transparent, wakes on touch,
+  and the frame remembers the chosen view. The admin's layout setting is the default;
+  changing it remotely takes back over until the screen is next touched.
 - **Photo folder import** — optionally point it at a folder (USB stick, Syncthing,
   network share) and it imports new images automatically.
 - **Family feed** — an Instagram-style feed in the app: everyone's photos in one

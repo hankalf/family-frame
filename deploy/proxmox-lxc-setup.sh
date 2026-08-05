@@ -81,6 +81,6 @@ echo "   Family app:  http://${HOST}.local/app   (or http://${IP}:${PORT}/app)"
 echo "   First visit creates the admin account."
 echo "   Kiosk URL:   sign in -> Admin -> Display -> copy the display URL"
 echo
-echo " Update later:  cd ${APP_DIR} && git pull && npm install && npm run build && systemctl restart frame"
+echo " Update later:  cd ${APP_DIR} && git checkout -- package-lock.json && git pull && npm ci && npm run build && systemctl restart frame"
 echo " Backup:        /var/lib/frame  (database + all photos)"
 echo "======================================================================"
