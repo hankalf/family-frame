@@ -6,9 +6,12 @@ import PhotoFrame from './PhotoFrame.jsx';
 import Agenda from './Agenda.jsx';
 import Clock from './Clock.jsx';
 
-const PLAYLIST_REFRESH_MS = 5 * 60 * 1000;
-const AGENDA_REFRESH_MS = 5 * 60 * 1000;
-const SETTINGS_REFRESH_MS = 10 * 60 * 1000;
+// Data refresh, not page reload — the slideshow keeps its place. Cheap against
+// the LAN server; note that external .ics feeds still only change as often as
+// the server polls them (feed_poll_minutes).
+const PLAYLIST_REFRESH_MS = 15 * 1000;
+const AGENDA_REFRESH_MS = 15 * 1000;
+const SETTINGS_REFRESH_MS = 60 * 1000;
 
 function usePolled(fetcher, intervalMs, deps = []) {
   const [data, setData] = useState(null);
