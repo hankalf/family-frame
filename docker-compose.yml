@@ -1,0 +1,17 @@
+services:
+  frame:
+    build: .
+    container_name: family-frame
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      # All state (database + photos). Back up this one folder.
+      - frame-data:/data
+    environment:
+      - PORT=80
+      # Uncomment behind an HTTPS reverse proxy:
+      # - COOKIE_SECURE=true
+
+volumes:
+  frame-data:

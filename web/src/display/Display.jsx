@@ -1,0 +1,228 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { api, getDisplayToken, setDisplayToken } from '../api.js';
+import { isNightTime } from '../lib/dates.js';
+import PhotoFrame from './PhotoFrame.jsx';
+import Agenda from './Agenda.jsx';
+import Clock from './Clock.jsx';
+
+const PLAYLIST_REFRESH_MS = 5 * 60 * 1000;
+const AGENDA_REFRESH_MS = 5 * 60 * 1000;
+const SETTINGS_REFRESH_MS = 10 * 60 * 1000;
+
+function usePolled(fetcher, intervalMs, deps = []) {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+  const savedFetcher = useRef(fetcher);
+  savedFetcher.current = fetcher;
+
+  const load = useCallback(async () => {
+    try {
+      setData(await savedFetcher.current());
+      setError(null);
+    } catch (err) {
+      // Keep showing the last good data — a dropped Wi-Fi link shouldn't blank
+      // the wall. Only surface an error if we never loaded anything.
+      setError(err);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+    const id = setInterval(load, intervalMs);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+
+  return { data, error, reload: load };
+}
+
+export default function Display() {
+  const [params, setParams] = useSearchParams();
+  const [token, setToken] = useState(getDisplayToken());
+
+  // A token in the URL is stored once, then stripped so the screen isn't
+  // showing the secret to the room.
+  useEffect(() => {
+    const fromUrl = params.get('token');
+    if (fromUrl) {
+      setDisplayToken(fromUrl);
+      setToken(fromUrl);
+      const next = new URLSearchParams(params);
+      next.delete('token');
+      setParams(next, { replace: true });
+    }
+  }, [params, setParams]);
+
+  const settingsQuery = usePolled(
+    async () => (await api.get('/settings/display')).settings,
+    SETTINGS_REFRESH_MS,
+    [token]
+  );
+  const settings = settingsQuery.data;
+
+  const agendaDays = Number(settings?.agenda_days) || 10;
+  const agendaQuery = usePolled(
+    async () => (await api.get(`/events/agenda?days=${agendaDays}`)).events,
+    AGENDA_REFRESH_MS,
+    [token, agendaDays]
+  );
+
+  const playlistQuery = usePolled(
+    async () => (await api.get('/photos/playlist')).photos,
+    PLAYLIST_REFRESH_MS,
+    [token]
+  );
+
+  const [isNight, setIsNight] = useState(false);
+  useEffect(() => {
+    if (!settings) return;
+    const check = () =>
+      setIsNight(isNightTime(settings.night_start, settings.night_end));
+    check();
+    const id = setInterval(check, 30_000);
+    return () => clearInterval(id);
+  }, [settings]);
+
+  // Keep the screen awake. Browsers only grant this after the page is visible,
+  // and drop it on tab switch, so re-request on visibility change.
+  useEffect(() => {
+    let sentinel = null;
+    let cancelled = false;
+
+    const acquire = async () => {
+      if (!('wakeLock' in navigator) || document.visibilityState !== 'visible') return;
+      try {
+        sentinel = await navigator.wakeLock.request('screen');
+      } catch {
+        /* denied — kiosk-mode screen blanking must be handled by the OS */
+      }
+    };
+
+    acquire();
+    const onVisible = () => {
+      if (!cancelled && document.visibilityState === 'visible') acquire();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVisible);
+      sentinel?.release?.().catch(() => {});
+    };
+  }, []);
+
+  const unauthorized =
+    settingsQuery.error?.status === 401 || playlistQuery.error?.status === 401;
+
+  if (!token || unauthorized) return <TokenPrompt hasToken={!!token} />;
+  if (!settings) return <Splash message="Waking up…" />;
+
+  const layout = settings.layout || 'sidebar';
+  const showPhotos = layout !== 'calendar-only';
+  const showCalendar = layout !== 'photo-only';
+
+  return (
+    <div className="kiosk relative h-screen w-screen overflow-hidden bg-slate-950">
+      {showPhotos && (
+        <PhotoFrame
+          photos={playlistQuery.data || []}
+          slideSeconds={Number(settings.slide_seconds) || 25}
+          transition={settings.transition}
+          shuffle={settings.shuffle === 'true'}
+          showCaptions={settings.show_captions === 'true'}
+          inset={showCalendar}
+        />
+      )}
+
+      {showCalendar && (
+        <aside
+          className={[
+            'absolute inset-y-0 left-0 z-20 flex w-[30rem] max-w-[38vw] flex-col gap-6 p-9',
+            showPhotos
+              ? 'bg-gradient-to-r from-slate-950 via-slate-950/95 to-transparent'
+              : 'w-full max-w-none bg-slate-950',
+          ].join(' ')}
+        >
+          <Clock
+            clock24={settings.clock_24h === 'true'}
+            timezone={settings.timezone}
+            wide={!showPhotos}
+          />
+          <Agenda
+            events={agendaQuery.data || []}
+            timezone={settings.timezone}
+            clock24={settings.clock_24h === 'true'}
+            loading={!agendaQuery.data}
+            columns={showPhotos ? 1 : 3}
+          />
+        </aside>
+      )}
+
+      {/* Night dimming — a pure overlay so nothing has to re-render. */}
+      <div
+        className="pointer-events-none absolute inset-0 z-40 bg-black transition-opacity duration-[3000ms]"
+        style={{
+          opacity: isNight ? 1 - (Number(settings.night_brightness) || 0.12) : 0,
+        }}
+      />
+
+      <OfflineBadge
+        offline={!!(agendaQuery.error || playlistQuery.error || settingsQuery.error)}
+      />
+    </div>
+  );
+}
+
+function Splash({ message }) {
+  return (
+    <div className="kiosk flex h-screen w-screen items-center justify-center bg-slate-950">
+      <p className="animate-pulse text-2xl text-slate-500">{message}</p>
+    </div>
+  );
+}
+
+function TokenPrompt({ hasToken }) {
+  return (
+    <div className="flex h-screen w-screen items-center justify-center bg-slate-950 p-8">
+      <div className="max-w-xl text-center">
+        <h1 className="text-3xl font-semibold text-slate-100">
+          {hasToken ? 'This display token is no longer valid' : 'This screen is not paired yet'}
+        </h1>
+        <p className="mt-4 leading-relaxed text-slate-400">
+          Sign in to the companion app on another device, open{' '}
+          <span className="text-slate-200">Settings → Display</span>, and copy the kiosk URL. It
+          looks like:
+        </p>
+        <code className="mt-4 block rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-sky-300">
+          http://this-machine:4000/display?token=…
+        </code>
+        <p className="mt-4 text-sm text-slate-500">
+          Open that once on this screen and it stays paired.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function OfflineBadge({ offline }) {
+  const [visible, setVisible] = useState(false);
+
+  // A single failed poll is usually nothing. Only admit to being offline once
+  // it has persisted, so a blip doesn't put a badge on the wall.
+  useEffect(() => {
+    if (!offline) {
+      setVisible(false);
+      return;
+    }
+    const id = setTimeout(() => setVisible(true), 90_000);
+    return () => clearTimeout(id);
+  }, [offline]);
+
+  if (!visible) return null;
+  return (
+    <div className="absolute bottom-5 right-6 z-40 rounded-full bg-amber-500/15 px-4 py-1.5 text-xs font-medium text-amber-300 ring-1 ring-amber-500/30">
+      Showing saved data — can't reach the server
+    </div>
+  );
+}

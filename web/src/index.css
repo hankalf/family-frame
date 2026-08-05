@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-slate-950 text-slate-100 antialiased;
+    /* Stops the kiosk browser from bouncing when a slide changes. */
+    overscroll-behavior: none;
+  }
+}
+
+@layer components {
+  .field {
+    @apply w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2.5 text-slate-100
+           placeholder:text-slate-500 outline-none transition
+           focus:border-sky-500 focus:ring-2 focus:ring-sky-500/25;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium
+           transition active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply btn bg-sky-500 text-white hover:bg-sky-400;
+  }
+
+  .btn-ghost {
+    @apply btn border border-slate-700 bg-slate-900/60 text-slate-200 hover:border-slate-600 hover:bg-slate-800;
+  }
+
+  .btn-danger {
+    @apply btn border border-rose-900/70 bg-rose-950/40 text-rose-300 hover:bg-rose-900/40;
+  }
+
+  .card {
+    @apply rounded-2xl border border-slate-800 bg-slate-900/50 p-5;
+  }
+
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-slate-300;
+  }
+}
+
+/* The kiosk should look like an appliance, not a web page. */
+.kiosk {
+  cursor: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
