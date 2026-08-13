@@ -17,6 +17,9 @@ COPY server/ server/
 COPY --from=build /app/web/dist web/dist
 # Reinstall server deps for this platform (sharp/better-sqlite3 native binaries)
 RUN cd server && npm install --omit=dev --no-audit --no-fund
-VOLUME /data
+# No VOLUME directive: Railway rejects it outright, and it never created the
+# persistence anyway -- docker-compose and Railway each mount their own volume
+# at /data. Without a mount, an anonymous volume from VOLUME just hid data
+# loss until the container was recreated.
 EXPOSE 80
 CMD ["node", "server/src/index.js"]
